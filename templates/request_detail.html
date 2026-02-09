@@ -2,56 +2,90 @@
 
 {% block title %}请求详情 #{{ request.id }} - TokenSlipper 管理后台{% endblock %}
 
+{% block page_title %}📄 请求详情{% endblock %}
+
 {% block extra_css %}
 <style>
-    .detail-section {
-        margin-bottom: 30px;
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 20px;
+        color: #667eea;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 500;
     }
     
-    .detail-section h3 {
-        font-size: 16px;
-        color: #667eea;
-        margin-bottom: 15px;
-        padding-bottom: 10px;
-        border-bottom: 2px solid #e0e0e0;
+    .back-link:hover {
+        text-decoration: underline;
     }
     
     .info-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 15px;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
     }
     
     .info-item {
-        background: #f8f9fa;
-        padding: 12px 15px;
+        background: #f7fafc;
+        padding: 14px 16px;
         border-radius: 8px;
     }
     
     .info-label {
         font-size: 12px;
-        color: #666;
+        color: #718096;
         text-transform: uppercase;
-        margin-bottom: 5px;
+        letter-spacing: 0.5px;
+        margin-bottom: 6px;
     }
     
     .info-value {
         font-size: 14px;
         font-weight: 500;
-        color: #333;
+        color: #1a202c;
+        word-break: break-all;
     }
     
-    .content-box {
-        background: #f8f9fa;
-        padding: 20px;
+    .section-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #4a5568;
+        margin: 20px 0 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .message-item {
+        padding: 16px;
         border-radius: 8px;
-        white-space: pre-wrap;
-        word-wrap: break-word;
-        font-family: 'Consolas', 'Monaco', monospace;
-        font-size: 13px;
-        line-height: 1.6;
-        max-height: 500px;
-        overflow-y: auto;
+        margin-bottom: 12px;
+        border-left: 4px solid;
+    }
+    
+    .message-system {
+        background: #f7fafc;
+        border-left-color: #a0aec0;
+    }
+    
+    .message-user {
+        background: #ebf8ff;
+        border-left-color: #3182ce;
+    }
+    
+    .message-assistant {
+        background: #f0fff4;
+        border-left-color: #38a169;
+    }
+    
+    .message-role {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+        color: #4a5568;
     }
     
     .message-content {
@@ -59,40 +93,35 @@
         word-wrap: break-word;
         font-size: 14px;
         line-height: 1.6;
+        color: #2d3748;
     }
     
-    .json-viewer {
-        background: #f8f9fa;
-        padding: 15px;
+    .content-box {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 16px;
         border-radius: 8px;
-        overflow-x: auto;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        max-height: 400px;
+        overflow-y: auto;
     }
     
-    .json-key {
-        color: #d73a49;
+    .json-key { color: #f687b3; }
+    .json-string { color: #68d391; }
+    .json-number { color: #63b3ed; }
+    .json-boolean { color: #f6ad55; }
+    
+    .error-card {
+        border: 2px solid #fc8181;
     }
     
-    .json-string {
-        color: #032f62;
-    }
-    
-    .json-number {
-        color: #005cc5;
-    }
-    
-    .json-boolean {
-        color: #005cc5;
-    }
-    
-    .back-link {
-        display: inline-block;
-        margin-bottom: 20px;
-        color: #667eea;
-        text-decoration: none;
-    }
-    
-    .back-link:hover {
-        text-decoration: underline;
+    .error-card .card-header {
+        background: #fed7d7;
+        color: #742a2a;
     }
 </style>
 {% endblock %}
@@ -107,58 +136,42 @@
             <h2>📤 请求信息</h2>
         </div>
         <div class="card-body">
-            <div class="detail-section">
-                <div class="info-grid">
-                    <div class="info-item">
-                        <div class="info-label">请求 ID</div>
-                        <div class="info-value">{{ request.request_id }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">请求时间</div>
-                        <div class="info-value">{{ request.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3] }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">请求方法</div>
-                        <div class="info-value">{{ request.method }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">请求路径</div>
-                        <div class="info-value">{{ request.path }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">客户端 IP</div>
-                        <div class="info-value">{{ request.client_ip or 'Unknown' }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">消息数量</div>
-                        <div class="info-value">{{ request.message_count }}</div>
-                    </div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">请求 ID</div>
+                    <div class="info-value"><code style="font-size: 12px;">{{ request.request_id }}</code></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">请求时间</div>
+                    <div class="info-value">{{ request.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">客户端 IP</div>
+                    <div class="info-value">{{ request.client_ip or 'Unknown' }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">消息数量</div>
+                    <div class="info-value">{{ request.message_count }}</div>
                 </div>
             </div>
             
-            <div class="detail-section">
-                <h3>模型参数</h3>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <div class="info-label">请求模型</div>
-                        <div class="info-value">{{ request.model_requested }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">映射后模型</div>
-                        <div class="info-value">{{ request.model_mapped }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Temperature</div>
-                        <div class="info-value">{{ request.temperature or 'Default' }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Max Tokens</div>
-                        <div class="info-value">{{ request.max_tokens or 'Default' }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Stream</div>
-                        <div class="info-value">{{ '是' if request.stream else '否' }}</div>
-                    </div>
+            <div class="section-title">模型参数</div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">请求模型</div>
+                    <div class="info-value">{{ request.model_requested }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">映射后模型</div>
+                    <div class="info-value" style="color: #667eea;">{{ request.model_mapped }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Temperature</div>
+                    <div class="info-value">{{ request.temperature or 'Default' }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Max Tokens</div>
+                    <div class="info-value">{{ request.max_tokens or 'Default' }}</div>
                 </div>
             </div>
         </div>
@@ -171,64 +184,51 @@
         </div>
         <div class="card-body">
             {% if request.response %}
-            <div class="detail-section">
-                <div class="info-grid">
-                    <div class="info-item">
-                        <div class="info-label">状态码</div>
-                        <div class="info-value">
-                            {% if request.response.status_code == 200 %}
-                                <span style="color: #28a745;">✓ {{ request.response.status_code }}</span>
-                            {% else %}
-                                <span style="color: #dc3545;">✗ {{ request.response.status_code }}</span>
-                            {% endif %}
-                        </div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">状态码</div>
+                    <div class="info-value">
+                        {% if request.response.status_code == 200 %}
+                            <span style="color: #38a169;">✓ {{ request.response.status_code }}</span>
+                        {% else %}
+                            <span style="color: #e53e3e;">✗ {{ request.response.status_code }}</span>
+                        {% endif %}
                     </div>
-                    <div class="info-item">
-                        <div class="info-label">响应时间</div>
-                        <div class="info-value">{{ request.response.response_timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3] }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">上游耗时</div>
-                        <div class="info-value">{{ "%.3f"|format(request.response.upstream_latency) }}s</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">总耗时</div>
-                        <div class="info-value">{{ "%.3f"|format(request.response.total_latency) }}s</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">响应模型</div>
-                        <div class="info-value">{{ request.response.model_responded or '-' }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Finish Reason</div>
-                        <div class="info-value">{{ request.response.finish_reason or '-' }}</div>
-                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">总耗时</div>
+                    <div class="info-value">{{ "%.3f"|format(request.response.total_latency) }}s</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">响应模型</div>
+                    <div class="info-value">{{ request.response.model_responded or '-' }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Finish Reason</div>
+                    <div class="info-value">{{ request.response.finish_reason or '-' }}</div>
                 </div>
             </div>
             
-            <div class="detail-section">
-                <h3>Token 使用</h3>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <div class="info-label">Prompt Tokens</div>
-                        <div class="info-value">{{ request.response.prompt_tokens or 0 }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Completion Tokens</div>
-                        <div class="info-value">{{ request.response.completion_tokens or 0 }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Total Tokens</div>
-                        <div class="info-value">{{ request.response.total_tokens or 0 }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Chunk 数量</div>
-                        <div class="info-value">{{ request.response.chunk_count or '-' }}</div>
-                    </div>
+            <div class="section-title">Token 使用</div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">Prompt</div>
+                    <div class="info-value">{{ request.response.prompt_tokens or 0 }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Completion</div>
+                    <div class="info-value">{{ request.response.completion_tokens or 0 }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Total</div>
+                    <div class="info-value" style="font-size: 18px; color: #667eea;">{{ request.response.total_tokens or 0 }}</div>
                 </div>
             </div>
             {% else %}
-            <p class="text-muted">暂无响应信息</p>
+            <div class="empty-state">
+                <div class="empty-state-icon">⏳</div>
+                <p>暂无响应信息</p>
+            </div>
             {% endif %}
         </div>
     </div>
@@ -243,12 +243,15 @@
         {% if messages %}
             {% for msg in messages %}
             <div class="message-item message-{{ msg.role }}">
-                <div class="message-role">{{ msg.role }} #{{ msg.message_index + 1 }}</div>
+                <div class="message-role">{{ msg.role }}</div>
                 <div class="message-content">{{ msg.content }}</div>
             </div>
             {% endfor %}
         {% else %}
-            <p class="text-muted">无消息记录</p>
+            <div class="empty-state">
+                <div class="empty-state-icon">📝</div>
+                <p>无消息记录</p>
+            </div>
         {% endif %}
     </div>
 </div>
@@ -273,11 +276,11 @@
     <div class="card-body">
         <div class="grid-2">
             <div>
-                <h4>请求体 (JSON)</h4>
+                <div class="section-title">请求体 (JSON)</div>
                 <pre id="request-json">{{ request_body_json }}</pre>
             </div>
             <div>
-                <h4>响应体 (JSON)</h4>
+                <div class="section-title">响应体 (JSON)</div>
                 <pre id="response-json">{{ response_body_json }}</pre>
             </div>
         </div>
@@ -285,12 +288,12 @@
 </div>
 
 {% if request.response and request.response.error_message %}
-<div class="card" style="border: 2px solid #dc3545;">
-    <div class="card-header" style="background: #f8d7da;">
+<div class="card error-card">
+    <div class="card-header">
         <h2>❌ 错误信息</h2>
     </div>
     <div class="card-body">
-        <div class="content-box" style="background: #f8d7da; color: #721c24;">{{ request.response.error_message }}</div>
+        <div style="background: #fff5f5; color: #742a2a; padding: 16px; border-radius: 8px; font-family: monospace; white-space: pre-wrap;">{{ request.response.error_message }}</div>
     </div>
 </div>
 {% endif %}
@@ -298,7 +301,6 @@
 
 {% block extra_js %}
 <script>
-// 简单的 JSON 语法高亮
 function syntaxHighlight(json) {
     if (typeof json !== 'string') {
         json = JSON.stringify(json, undefined, 2);
@@ -321,7 +323,6 @@ function syntaxHighlight(json) {
     });
 }
 
-// 应用语法高亮
 document.getElementById('request-json').innerHTML = syntaxHighlight(document.getElementById('request-json').textContent);
 document.getElementById('response-json').innerHTML = syntaxHighlight(document.getElementById('response-json').textContent);
 </script>

@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+
+{% block title %}API 厂商管理 - TokenSlipper 管理后台{% endblock %}
+
+{% block page_title %}🏢 API 厂商管理{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>➕ 添加 API 厂商</h2>
+        <span class="text-muted" style="font-size: 13px;">支持 OpenAI 兼容格式的 API</span>
+    </div>
+    <div class="card-body">
+        {% if error %}
+        <div class="alert alert-error">
+            <span>❌</span> {{ error }}
+        </div>
+        {% endif %}
+        
+        <form method="post" action="/admin/providers/add">
+            <div class="form-row">
+                <div class="form-group" style="flex: 1;">
+                    <label for="name">厂商名称</label>
+                    <input type="text" id="name" name="name" required 
+                           placeholder="如: Claude API"
+                           value="{{ form_data.name if form_data else '' }}">
+                </div>
+                <div class="form-group" style="flex: 2;">
+                    <label for="base_url">API 地址</label>
+                    <input type="url" id="base_url" name="base_url" required 
+                           placeholder="如: https://api.anthropic.com/v1"
+                           value="{{ form_data.base_url if form_data else '' }}">
+                    <span class="help-text">OpenAI 兼容格式的 API 基础地址</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="api_key">API Key</label>
+                <input type="password" id="api_key" name="api_key" required 
+                       placeholder="输入 API Key"
+                       value="{{ form_data.api_key if form_data else '' }}">
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">添加厂商</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>📋 API 厂商列表</h2>
+        <span class="text-muted" style="font-size: 13px;">点击测试按钮验证 API 可用性</span>
+    </div>
+    <div class="card-body">
+        {% if providers %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>状态</th>
+                    <th>厂商名称</th>
+                    <th>API 地址</th>
+                    <th>状态</th>
+                    <th>最后测试</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for provider in providers %}
+                <tr>
+                    <td>
+                        <div class="status-indicator status-{{ provider.test_status }}"></div>
+                    </td>
+                    <td>
+                        <strong>{{ provider.name }}</strong>
+                        {% if provider.test_message %}
+                        <div class="test-message" title="{{ provider.test_message }}">{{ provider.test_message[:50] }}{% if provider.test_message|length > 50 %}...{% endif %}</div>
+                        {% endif %}
+                    </td>
+                    <td><code class="url-code">{{ provider.base_url }}</code></td>
+                    <td>
+                        {% if provider.is_active %}
+                        <span class="badge badge-success">启用</span>
+                        {% else %}
+                        <span class="badge badge-error">禁用</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if provider.test_time %}
+                        {{ provider.test_time.strftime('%m-%d %H:%M') }}
+                        {% else %}
+                        <span class="text-muted">未测试</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick="testProvider({{ provider.id }})">
+                            <span id="test-btn-{{ provider.id }}">🧪 测试</span>
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="toggleEditForm({{ provider.id }})">编辑</button>
+                        <a href="/admin/providers/{{ provider.id }}/delete" class="btn btn-danger btn-sm" onclick="return confirm('确定删除此厂商？')">删除</a>
+                    </td>
+                </tr>
+                <tr id="edit-form-{{ provider.id }}" class="edit-row" style="display: none;">
+                    <td colspan="6">
+                        <form method="post" action="/admin/providers/{{ provider.id }}/edit">
+                            <div class="form-row">
+                                <div class="form-group" style="flex: 1;">
+                                    <input type="text" value="{{ provider.name }}" disabled title="厂商名称不可修改">
+                                </div>
+                                <div class="form-group" style="flex: 2;">
+                                    <input type="url" name="base_url" value="{{ provider.base_url }}" required placeholder="API 地址">
+                                </div>
+                                <div class="form-group" style="flex: 1;">
+                                    <input type="password" name="api_key" value="{{ provider.api_key }}" required placeholder="API Key">
+                                </div>
+                                <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                                    <label class="checkbox-wrapper">
+                                        <input type="checkbox" name="is_active" {% if provider.is_active %}checked{% endif %}>
+                                        <span>启用</span>
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <button type="submit" class="btn btn-primary btn-sm">保存</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="toggleEditForm({{ provider.id }})">取消</button>
+                                </div>
+                            </div>
+                        </form>
+                    </td>
+                </tr>
+                <tr id="test-result-{{ provider.id }}" class="test-result-row" style="display: none;">
+                    <td colspan="6">
+                        <div id="test-content-{{ provider.id }}" class="test-content"></div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">🏢</div>
+            <p>暂无 API 厂商</p>
+            <p class="text-muted">请在上方添加 API 厂商</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function toggleEditForm(id) {
+    const form = document.getElementById('edit-form-' + id);
+    if (form.style.display === 'none') {
+        document.querySelectorAll('.edit-row').forEach(el => {
+            el.style.display = 'none';
+        });
+        form.style.display = 'table-row';
+    } else {
+        form.style.display = 'none';
+    }
+}
+
+async function testProvider(id) {
+    const btn = document.getElementById('test-btn-' + id);
+    const resultRow = document.getElementById('test-result-' + id);
+    const contentDiv = document.getElementById('test-content-' + id);
+    
+    // 显示加载状态
+    btn.innerHTML = '⏳ 测试中...';
+    btn.disabled = true;
+    resultRow.style.display = 'none';
+    
+    try {
+        const response = await fetch('/admin/providers/' + id + '/test', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        // 构建测试结果 HTML
+        let html = '<div class="test-result-content">';
+        html += '<h4>🧪 测试结果 - ' + result.provider_name + '</h4>';
+        html += '<div class="test-summary ' + result.status + '">' + result.message + '</div>';
+        
+        // 非流式测试结果
+        if (result.tests.non_stream) {
+            const ns = result.tests.non_stream;
+            html += '<div class="test-detail">';
+            html += '<h5>📤 非流式请求</h5>';
+            if (ns.status === 'success') {
+                html += '<span class="badge badge-success">✓ 成功</span>';
+                html += '<p>状态码: ' + ns.status_code + '</p>';
+                html += '<p>模型: ' + ns.model + '</p>';
+                html += '<p>回复: ' + ns.content + '</p>';
+            } else {
+                html += '<span class="badge badge-error">✗ 失败</span>';
+                html += '<p>状态码: ' + (ns.status_code || 'N/A') + '</p>';
+                html += '<p>错误: ' + (ns.error || '未知错误') + '</p>';
+            }
+            html += '</div>';
+        }
+        
+        // 流式测试结果
+        if (result.tests.stream) {
+            const s = result.tests.stream;
+            html += '<div class="test-detail">';
+            html += '<h5>📡 流式请求</h5>';
+            if (s.status === 'success') {
+                html += '<span class="badge badge-success">✓ 成功</span>';
+                html += '<p>状态码: ' + s.status_code + '</p>';
+                html += '<p>收到 ' + s.chunks_received + ' 个数据块</p>';
+            } else {
+                html += '<span class="badge badge-error">✗ 失败</span>';
+                html += '<p>状态码: ' + (s.status_code || 'N/A') + '</p>';
+                html += '<p>错误: ' + (s.error || '未知错误') + '</p>';
+            }
+            html += '</div>';
+        }
+        
+        html += '</div>';
+        
+        contentDiv.innerHTML = html;
+        resultRow.style.display = 'table-row';
+        
+        // 更新状态指示器
+        setTimeout(() => {
+            location.reload();
+        }, 3000);
+        
+    } catch (error) {
+        contentDiv.innerHTML = '<div class="alert alert-error">测试请求失败: ' + error.message + '</div>';
+        resultRow.style.display = 'table-row';
+    } finally {
+        btn.innerHTML = '🧪 测试';
+        btn.disabled = false;
+    }
+}
+</script>
+
+<style>
+.status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-success {
+    background: #48bb78;
+    box-shadow: 0 0 8px #48bb78;
+}
+
+.status-failed {
+    background: #f56565;
+    box-shadow: 0 0 8px #f56565;
+}
+
+.status-unknown {
+    background: #a0aec0;
+}
+
+.status-partial {
+    background: #ed8936;
+    box-shadow: 0 0 8px #ed8936;
+}
+
+.url-code {
+    font-size: 12px;
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
+}
+
+.test-message {
+    font-size: 12px;
+    color: #718096;
+    margin-top: 4px;
+}
+
+.edit-row {
+    background: #f7fafc;
+}
+
+.edit-row td {
+    padding: 16px;
+}
+
+.test-result-row {
+    background: #f7fafc;
+}
+
+.test-result-row td {
+    padding: 0;
+}
+
+.test-content {
+    padding: 20px;
+}
+
+.test-result-content {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.test-result-content h4 {
+    margin-bottom: 16px;
+    color: #1a202c;
+}
+
+.test-summary {
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-weight: 500;
+}
+
+.test-summary.success {
+    background: #c6f6d5;
+    color: #22543d;
+}
+
+.test-summary.failed {
+    background: #fed7d7;
+    color: #742a2a;
+}
+
+.test-summary.partial {
+    background: #fefcbf;
+    color: #744210;
+}
+
+.test-detail {
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 12px;
+}
+
+.test-detail h5 {
+    margin-bottom: 12px;
+    color: #4a5568;
+}
+
+.test-detail p {
+    margin: 4px 0;
+    font-size: 13px;
+    color: #4a5568;
+}
+
+.checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+</style>
+{% endblock %}

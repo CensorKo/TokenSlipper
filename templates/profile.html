@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}个人资料 - TokenSlipper 管理后台{% endblock %}
+
+{% block page_title %}👤 个人资料{% endblock %}
+
+{% block content %}
+<div class="grid-2">
+    <div class="card">
+        <div class="card-header">
+            <h2>🔐 修改密码</h2>
+        </div>
+        <div class="card-body">
+            {% if success %}
+            <div class="alert alert-success">
+                <span>✅</span> {{ success }}
+            </div>
+            {% endif %}
+            
+            {% if error %}
+            <div class="alert alert-error">
+                <span>❌</span> {{ error }}
+            </div>
+            {% endif %}
+            
+            <form method="post" action="/admin/profile">
+                <div class="form-group">
+                    <label for="current_password">当前密码</label>
+                    <input type="password" id="current_password" name="current_password" required 
+                           placeholder="请输入当前密码" autocomplete="current-password">
+                </div>
+                
+                <div class="form-group">
+                    <label for="new_password">新密码</label>
+                    <input type="password" id="new_password" name="new_password" required 
+                           placeholder="请输入新密码（至少6位）" minlength="6" autocomplete="new-password">
+                </div>
+                
+                <div class="form-group">
+                    <label for="confirm_password">确认新密码</label>
+                    <input type="password" id="confirm_password" name="confirm_password" required 
+                           placeholder="请再次输入新密码" minlength="6" autocomplete="new-password">
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">修改密码</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h2>📋 账户信息</h2>
+        </div>
+        <div class="card-body">
+            <table class="data-table info-table">
+                <tbody>
+                    <tr>
+                        <th>用户名</th>
+                        <td><strong>{{ user.username }}</strong></td>
+                    </tr>
+                    <tr>
+                        <th>账户状态</th>
+                        <td>
+                            {% if user.is_active %}
+                            <span class="badge badge-success">正常</span>
+                            {% else %}
+                            <span class="badge badge-error">已禁用</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>创建时间</th>
+                        <td>{{ user.created_at.strftime('%Y-%m-%d %H:%M:%S') if user.created_at else '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th>最后登录</th>
+                        <td>{{ user.last_login.strftime('%Y-%m-%d %H:%M:%S') if user.last_login else '-' }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.info-table th {
+    width: 120px;
+    background: transparent;
+    font-weight: 500;
+    color: #4a5568;
+}
+
+.info-table td {
+    background: transparent;
+}
+
+.form-actions {
+    margin-top: 24px;
+}
+</style>
+{% endblock %}

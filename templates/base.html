@@ -11,138 +11,410 @@
             box-sizing: border-box;
         }
         
+        :root {
+            --sidebar-width: 260px;
+            --sidebar-collapsed: 60px;
+            --header-height: 60px;
+            --primary-color: #667eea;
+            --primary-dark: #5a6fd6;
+            --sidebar-bg: #1a1f2e;
+            --sidebar-active: #2d3748;
+            --text-light: #a0aec0;
+            --text-white: #ffffff;
+            --bg-gray: #f5f7fa;
+        }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: #f5f7fa;
+            background: var(--bg-gray);
             color: #333;
             line-height: 1.6;
+            overflow-x: hidden;
         }
         
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
+        /* 布局容器 */
+        .layout {
+            display: flex;
+            min-height: 100vh;
         }
         
-        header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px 0;
-            margin-bottom: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        /* 左侧导航栏 */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--sidebar-bg);
+            color: var(--text-white);
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100vh;
+            transition: width 0.3s ease;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
         }
         
-        header h1 {
-            font-size: 24px;
+        .sidebar.collapsed {
+            width: var(--sidebar-collapsed);
+        }
+        
+        /* 侧边栏头部 */
+        .sidebar-header {
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 20px;
             font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
         }
         
-        header .subtitle {
-            opacity: 0.9;
-            font-size: 14px;
-            margin-top: 5px;
+        .logo-icon {
+            font-size: 28px;
+            flex-shrink: 0;
         }
         
-        .nav {
-            background: white;
-            padding: 15px 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        .logo-text {
+            transition: opacity 0.3s;
         }
         
-        .nav a {
-            color: #667eea;
+        .sidebar.collapsed .logo-text {
+            opacity: 0;
+            width: 0;
+        }
+        
+        /* 折叠按钮 */
+        .collapse-btn {
+            position: absolute;
+            right: -12px;
+            top: 70px;
+            width: 24px;
+            height: 24px;
+            background: var(--primary-color);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+            transition: transform 0.3s;
+        }
+        
+        .sidebar.collapsed .collapse-btn {
+            transform: rotate(180deg);
+        }
+        
+        /* 导航菜单 */
+        .sidebar-nav {
+            flex: 1;
+            padding: 20px 0;
+            overflow-y: auto;
+        }
+        
+        .nav-section {
+            margin-bottom: 8px;
+        }
+        
+        .nav-section-header {
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .nav-section-header:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .nav-section-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-light);
+            font-weight: 600;
+            white-space: nowrap;
+            transition: opacity 0.3s;
+        }
+        
+        .section-toggle {
+            font-size: 10px;
+            color: var(--text-light);
+            transition: transform 0.3s;
+        }
+        
+        .section-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+        
+        .sidebar.collapsed .nav-section-header {
+            display: none;
+        }
+        
+        .nav-section-content {
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        
+        .nav-section-content.collapsed {
+            max-height: 0;
+        }
+        
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            color: var(--text-light);
             text-decoration: none;
-            margin-right: 20px;
+            transition: all 0.2s;
+            position: relative;
+            white-space: nowrap;
+        }
+        
+        .nav-item:hover {
+            background: rgba(255,255,255,0.05);
+            color: var(--text-white);
+        }
+        
+        .nav-item.active {
+            background: var(--sidebar-active);
+            color: var(--text-white);
+        }
+        
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: var(--primary-color);
+        }
+        
+        .nav-icon {
+            font-size: 20px;
+            width: 24px;
+            text-align: center;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        
+        .nav-text {
+            transition: opacity 0.3s;
+        }
+        
+        .sidebar.collapsed .nav-text {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
+        }
+        
+        /* 工具提示（折叠时显示） */
+        .nav-item[title]::after {
+            content: attr(title);
+            position: absolute;
+            left: 100%;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #000;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+            margin-left: 10px;
+            z-index: 1001;
+        }
+        
+        .sidebar.collapsed .nav-item:hover[title]::after {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* 侧边栏底部 */
+        .sidebar-footer {
+            padding: 15px 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-light);
+        }
+        
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        
+        .user-details {
+            transition: opacity 0.3s;
+            overflow: hidden;
+        }
+        
+        .sidebar.collapsed .user-details {
+            opacity: 0;
+            width: 0;
+        }
+        
+        .user-name {
             font-weight: 500;
+            color: var(--text-white);
+            font-size: 13px;
         }
         
-        .nav a:hover {
-            text-decoration: underline;
+        .user-role {
+            font-size: 11px;
+            color: var(--text-light);
         }
         
+        /* 主内容区 */
+        .main-wrapper {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            transition: margin-left 0.3s ease;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .sidebar.collapsed + .main-wrapper {
+            margin-left: var(--sidebar-collapsed);
+        }
+        
+        /* 顶部栏 */
+        .top-header {
+            height: var(--header-height);
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .page-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1a202c;
+        }
+        
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+        
+        .btn-icon:hover {
+            background: #f7fafc;
+            border-color: #cbd5e0;
+        }
+        
+        .logout-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: #fed7d7;
+            color: #c53030;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .logout-btn:hover {
+            background: #fc8181;
+            color: white;
+        }
+        
+        /* 内容区 */
+        .content-area {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+        }
+        
+        /* 卡片样式 */
         .card {
             background: white;
             border-radius: 12px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            margin-bottom: 24px;
             overflow: hidden;
         }
         
         .card-header {
-            padding: 20px;
-            border-bottom: 1px solid #f0f0f0;
-            background: #fafbfc;
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
         
         .card-header h2 {
-            font-size: 18px;
-            color: #333;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a202c;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         
         .card-body {
-            padding: 20px;
+            padding: 24px;
         }
         
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        th, td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        
-        th {
-            background: #f8f9fa;
-            font-weight: 600;
-            color: #555;
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        tr:hover {
-            background: #f8f9fa;
-        }
-        
-        .badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-        
-        .badge-success {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .badge-error {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        
-        .badge-stream {
-            background: #e3f2fd;
-            color: #1565c0;
-        }
-        
-        .badge-normal {
-            background: #f5f5f5;
-            color: #616161;
-        }
-        
+        /* 按钮 */
         .btn {
-            display: inline-block;
-            padding: 8px 16px;
-            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 20px;
+            border-radius: 8px;
             text-decoration: none;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 500;
             transition: all 0.2s;
             cursor: pointer;
@@ -150,163 +422,404 @@
         }
         
         .btn-primary {
-            background: #667eea;
+            background: var(--primary-color);
             color: white;
         }
         
         .btn-primary:hover {
-            background: #5a6fd6;
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
         
         .btn-secondary {
-            background: #f5f5f5;
-            color: #666;
+            background: #edf2f7;
+            color: #4a5568;
         }
         
         .btn-secondary:hover {
-            background: #e8e8e8;
+            background: #e2e8f0;
         }
         
+        .btn-danger {
+            background: #fed7d7;
+            color: #c53030;
+        }
+        
+        .btn-danger:hover {
+            background: #fc8181;
+            color: white;
+        }
+        
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 13px;
+        }
+        
+        /* 表格 */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .data-table th,
+        .data-table td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .data-table th {
+            background: #f7fafc;
+            font-weight: 600;
+            color: #4a5568;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .data-table tr:hover {
+            background: #f7fafc;
+        }
+        
+        /* 徽章 */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .badge-success {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        
+        .badge-error {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+        
+        .badge-warning {
+            background: #fefcbf;
+            color: #744210;
+        }
+        
+        /* 统计卡片 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 24px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .stat-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+        }
+        
+        .stat-icon.blue { background: #ebf8ff; }
+        .stat-icon.green { background: #f0fff4; }
+        .stat-icon.purple { background: #faf5ff; }
+        .stat-icon.orange { background: #fffaf0; }
+        
+        .stat-content h3 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 4px;
+        }
+        
+        .stat-content p {
+            font-size: 14px;
+            color: #718096;
+        }
+        
+        /* 表单 */
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #4a5568;
+            font-size: 14px;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        /* 分页 */
         .pagination {
             display: flex;
             justify-content: center;
-            gap: 10px;
-            margin-top: 20px;
+            gap: 8px;
+            margin-top: 24px;
         }
         
         .pagination a, .pagination span {
             padding: 8px 14px;
-            border-radius: 6px;
+            border-radius: 8px;
             text-decoration: none;
-            color: #667eea;
+            color: #4a5568;
             background: white;
-            border: 1px solid #e0e0e0;
+            border: 1px solid #e2e8f0;
+            font-size: 14px;
+            transition: all 0.2s;
         }
         
         .pagination a:hover {
-            background: #667eea;
+            background: var(--primary-color);
             color: white;
+            border-color: var(--primary-color);
         }
         
         .pagination .current {
-            background: #667eea;
+            background: var(--primary-color);
             color: white;
-            border-color: #667eea;
+            border-color: var(--primary-color);
         }
         
-        .text-muted {
-            color: #999;
+        /* 消息 */
+        .alert {
+            padding: 14px 18px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         
-        .text-small {
-            font-size: 12px;
+        .alert-success {
+            background: #f0fff4;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
         }
         
-        .text-truncate {
-            max-width: 300px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+        .alert-error {
+            background: #fff5f5;
+            color: #742a2a;
+            border: 1px solid #fc8181;
         }
         
-        .grid-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #a0aec0;
         }
         
-        @media (max-width: 768px) {
-            .grid-2 {
-                grid-template-columns: 1fr;
-            }
-            
-            .text-truncate {
-                max-width: 150px;
-            }
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        /* 代码块 */
+        code {
+            background: #edf2f7;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            color: #2d3748;
         }
         
         pre {
-            background: #f8f9fa;
-            padding: 15px;
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 16px;
             border-radius: 8px;
             overflow-x: auto;
             font-size: 13px;
             line-height: 1.5;
         }
         
-        .message-item {
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.open {
+                transform: translateX(0);
+                width: var(--sidebar-width);
+            }
+            
+            .main-wrapper {
+                margin-left: 0;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
         }
         
-        .message-user {
-            background: #e3f2fd;
-            border-left: 4px solid #2196f3;
-        }
-        
-        .message-assistant {
-            background: #f3e5f5;
-            border-left: 4px solid #9c27b0;
-        }
-        
-        .message-system {
-            background: #f5f5f5;
-            border-left: 4px solid #9e9e9e;
-        }
-        
-        .message-role {
-            font-weight: 600;
-            font-size: 12px;
-            text-transform: uppercase;
-            margin-bottom: 5px;
-            color: #666;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .stat-card {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
-        
-        .stat-value {
-            font-size: 32px;
-            font-weight: 700;
-            color: #667eea;
-        }
-        
-        .stat-label {
-            color: #666;
-            font-size: 14px;
-            margin-top: 5px;
-        }
+        {% block extra_css %}{% endblock %}
     </style>
-    {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <header>
-        <div class="container">
-            <h1>🩴 TokenSlipper 管理后台</h1>
-            <div class="subtitle">让大模型 API 使用回归理性 | Token 监控与分析</div>
-        </div>
-    </header>
-    
-    <div class="container">
-        <div class="nav">
-            <a href="/admin/">📊 概览</a>
-            <a href="/admin/requests">📋 请求列表</a>
-        </div>
+    <div class="layout">
+        <!-- 左侧导航栏 -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <span class="logo-icon">🩴</span>
+                    <span class="logo-text">TokenSlipper</span>
+                </div>
+            </div>
+            
+            <button class="collapse-btn" onclick="toggleSidebar()" title="折叠/展开">◀</button>
+            
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-header" onclick="toggleSection('main-menu')">
+                        <span class="nav-section-title">主菜单</span>
+                        <span class="section-toggle" id="main-menu-toggle">▼</span>
+                    </div>
+                    <div class="nav-section-content" id="main-menu">
+                        <a href="/admin/" class="nav-item {% if request.url.path == '/admin/' %}active{% endif %}" title="概览">
+                            <span class="nav-text">概览</span>
+                        </a>
+                        <a href="/admin/requests" class="nav-item {% if '/admin/requests' in request.url.path %}active{% endif %}" title="请求日志">
+                            <span class="nav-text">请求日志</span>
+                        </a>
+                        <a href="/admin/models" class="nav-item {% if '/admin/models' in request.url.path %}active{% endif %}" title="模型映射">
+                            <span class="nav-text">模型映射</span>
+                        </a>
+                        <a href="/admin/providers" class="nav-item {% if '/admin/providers' in request.url.path %}active{% endif %}" title="API 厂商">
+                            <span class="nav-text">API 厂商</span>
+                        </a>
+                        <a href="/admin/tokens" class="nav-item {% if '/admin/tokens' in request.url.path %}active{% endif %}" title="API Token">
+                            <span class="nav-text">API Token</span>
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-section-header" onclick="toggleSection('settings-menu')">
+                        <span class="nav-section-title">设置</span>
+                        <span class="section-toggle" id="settings-menu-toggle">▼</span>
+                    </div>
+                    <div class="nav-section-content" id="settings-menu">
+                        <a href="/admin/profile" class="nav-item {% if '/admin/profile' in request.url.path %}active{% endif %}" title="个人资料">
+                            <span class="nav-text">个人资料</span>
+                        </a>
+                    </div>
+                </div>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar">👤</div>
+                    <div class="user-details">
+                        <div class="user-name">{{ user.username }}</div>
+                        <div class="user-role">管理员</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
         
-        {% block content %}{% endblock %}
+        <!-- 右侧主内容区 -->
+        <div class="main-wrapper">
+            <!-- 顶部栏 -->
+            <header class="top-header">
+                <h1 class="page-title">{% block page_title %}概览{% endblock %}</h1>
+                <div class="header-actions">
+                    <a href="/admin/logout" class="logout-btn">
+                        <span>🚪</span>
+                        <span>退出登录</span>
+                    </a>
+                </div>
+            </header>
+            
+            <!-- 内容区 -->
+            <main class="content-area">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
     </div>
+    
+    <script>
+        // 侧边栏折叠状态
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('collapsed');
+            
+            // 保存状态到 localStorage
+            const isCollapsed = sidebar.classList.contains('collapsed');
+            localStorage.setItem('sidebarCollapsed', isCollapsed);
+        }
+        
+        // 菜单区域折叠
+        function toggleSection(sectionId) {
+            const content = document.getElementById(sectionId);
+            const toggle = document.getElementById(sectionId + '-toggle');
+            
+            content.classList.toggle('collapsed');
+            toggle.classList.toggle('collapsed');
+            
+            // 保存状态
+            const isCollapsed = content.classList.contains('collapsed');
+            localStorage.setItem('section_' + sectionId, isCollapsed);
+        }
+        
+        // 页面加载时恢复状态
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+            
+            if (isCollapsed) {
+                sidebar.classList.add('collapsed');
+            }
+            
+            // 恢复菜单折叠状态
+            ['main-menu', 'settings-menu'].forEach(function(sectionId) {
+                const content = document.getElementById(sectionId);
+                const toggle = document.getElementById(sectionId + '-toggle');
+                const sectionCollapsed = localStorage.getItem('section_' + sectionId) === 'true';
+                
+                if (sectionCollapsed && content && toggle) {
+                    content.classList.add('collapsed');
+                    toggle.classList.add('collapsed');
+                }
+            });
+        });
+    </script>
     
     {% block extra_js %}{% endblock %}
 </body>

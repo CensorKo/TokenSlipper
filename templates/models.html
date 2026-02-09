@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block title %}模型映射管理 - TokenSlipper 管理后台{% endblock %}
+
+{% block page_title %}🤖 模型映射管理{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>➕ 添加模型映射</h2>
+        <span class="text-muted" style="font-size: 13px;">可为指定厂商或全局配置映射</span>
+    </div>
+    <div class="card-body">
+        {% if error %}
+        <div class="alert alert-error">
+            <span>❌</span> {{ error }}
+        </div>
+        {% endif %}
+        
+        <form method="post" action="/admin/models/add">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="provider_id">厂商（可选）</label>
+                    <select id="provider_id" name="provider_id">
+                        <option value="">-- 全局映射（所有厂商）--</option>
+                        {% for provider in providers %}
+                        <option value="{{ provider.id }}" {% if form_data and form_data.provider_id == provider.id|string %}selected{% endif %}>
+                            {{ provider.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <span class="help-text">选择厂商则仅对该厂商生效</span>
+                </div>
+                
+                <div class="form-group">
+                    <label for="source_model">源模型名</label>
+                    <input type="text" id="source_model" name="source_model" required 
+                           placeholder="如: claude-4.6-opus-high"
+                           value="{{ form_data.source_model if form_data else '' }}">
+                    <span class="help-text">Cursor 或其他客户端请求的模型名</span>
+                </div>
+                
+                <div class="form-group">
+                    <label for="target_model">目标模型名</label>
+                    <input type="text" id="target_model" name="target_model" required 
+                           placeholder="如: claude-opus-4-6"
+                           value="{{ form_data.target_model if form_data else '' }}">
+                    <span class="help-text">实际转发给第三方 API 的模型名</span>
+                </div>
+                
+                <div class="form-group">
+                    <label for="description">描述（可选）</label>
+                    <input type="text" id="description" name="description" 
+                           placeholder="如: Claude 4.6 Opus 高智能版"
+                           value="{{ form_data.description if form_data else '' }}">
+                </div>
+            </div>
+            
+            <div class="form-actions" style="margin-top: 20px;">
+                <button type="submit" class="btn btn-primary">添加映射</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>📋 动态模型映射</h2>
+        <span class="badge badge-success">数据库</span>
+    </div>
+    <div class="card-body">
+        {% if dynamic_mappings %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>厂商</th>
+                    <th>源模型名</th>
+                    <th>目标模型名</th>
+                    <th>描述</th>
+                    <th>状态</th>
+                    <th>更新时间</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for mapping in dynamic_mappings %}
+                <tr>
+                    <td>{{ mapping.id }}</td>
+                    <td>
+                        {% if mapping.provider %}
+                        <span class="badge badge-provider">{{ mapping.provider.name }}</span>
+                        {% else %}
+                        <span class="badge badge-global">全局</span>
+                        {% endif %}
+                    </td>
+                    <td><code>{{ mapping.source_model }}</code></td>
+                    <td><code style="color: #667eea;">{{ mapping.target_model }}</code></td>
+                    <td>{{ mapping.description or '-' }}</td>
+                    <td>
+                        {% if mapping.is_active %}
+                        <span class="badge badge-success">启用</span>
+                        {% else %}
+                        <span class="badge badge-error">禁用</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ mapping.updated_at.strftime('%Y-%m-%d %H:%M') if mapping.updated_at else '-' }}</td>
+                    <td>
+                        <button class="btn btn-secondary btn-sm" onclick="toggleEditForm({{ mapping.id }})">编辑</button>
+                        <a href="/admin/models/{{ mapping.id }}/delete" class="btn btn-danger btn-sm" onclick="return confirm('确定删除此映射？')">删除</a>
+                    </td>
+                </tr>
+                <tr id="edit-form-{{ mapping.id }}" class="edit-row" style="display: none;">
+                    <td colspan="8">
+                        <form method="post" action="/admin/models/{{ mapping.id }}/edit">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <select name="provider_id" disabled>
+                                        <option value="">{% if mapping.provider %}{{ mapping.provider.name }}{% else %}全局映射{% endif %}</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <input type="text" value="{{ mapping.source_model }}" disabled title="源模型名不可修改">
+                                </div>
+                                <div class="form-group">
+                                    <input type="text" name="target_model" value="{{ mapping.target_model }}" required placeholder="目标模型名">
+                                </div>
+                                <div class="form-group">
+                                    <input type="text" name="description" value="{{ mapping.description or '' }}" placeholder="描述">
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 12px; margin-top: 12px;">
+                                <label class="checkbox-wrapper">
+                                    <input type="checkbox" name="is_active" {% if mapping.is_active %}checked{% endif %}>
+                                    <span>启用</span>
+                                </label>
+                                <button type="submit" class="btn btn-primary btn-sm">保存</button>
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="toggleEditForm({{ mapping.id }})">取消</button>
+                            </div>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">🤖</div>
+            <p>暂无动态模型映射</p>
+            <p class="text-muted">请在上方添加模型映射</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>⚙️ 静态模型映射</h2>
+        <span class="badge badge-warning">配置文件</span>
+    </div>
+    <div class="card-body">
+        {% if static_mappings %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>源模型名</th>
+                    <th>目标模型名</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for source, target in static_mappings.items() %}
+                <tr>
+                    <td><code>{{ source }}</code></td>
+                    <td><code style="color: #667eea;">{{ target }}</code></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <p>配置文件中没有静态映射</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function toggleEditForm(id) {
+    const form = document.getElementById('edit-form-' + id);
+    if (form.style.display === 'none') {
+        document.querySelectorAll('.edit-row').forEach(el => {
+            el.style.display = 'none';
+        });
+        form.style.display = 'table-row';
+    } else {
+        form.style.display = 'none';
+    }
+}
+</script>
+
+<style>
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+.form-group {
+    margin-bottom: 0;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+}
+
+.help-text {
+    font-size: 12px;
+    color: #718096;
+    margin-top: 4px;
+}
+
+.edit-row {
+    background: #f7fafc;
+}
+
+.edit-row td {
+    padding: 16px;
+}
+
+.checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
+.text-muted {
+    color: #718096;
+}
+
+.badge-provider {
+    background: #e9d8fd;
+    color: #6b46c1;
+}
+
+.badge-global {
+    background: #e2e8f0;
+    color: #4a5568;
+}
+</style>
+{% endblock %}

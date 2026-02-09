@@ -26,6 +26,8 @@ TokenSlipper 是一款智能 API 代理服务器，专为精简 Token 请求、�
 
 ## 📦 安装
 
+### 1. 安装项目依赖
+
 ```bash
 # 进入目录
 cd TokenSlipper
@@ -36,6 +38,42 @@ source venv/bin/activate
 
 # 安装依赖
 pip install -r requirements.txt
+```
+
+### 2. 启动 MySQL (Docker)
+
+项目使用 MySQL 存储请求日志，推荐使用 Docker 一键启动：
+
+```bash
+# 启动 MySQL 容器
+./start-mysql.sh
+```
+
+或者手动使用 Docker：
+
+```bash
+# 运行 MySQL 容器
+docker run -d \
+    --name tokenslipper-mysql \
+    --restart always \
+    -e MYSQL_ROOT_PASSWORD=rootpassword \
+    -e MYSQL_DATABASE=tokenslipper \
+    -e MYSQL_USER=tokenslipper \
+    -e MYSQL_PASSWORD=tokenslipper123 \
+    -p 3306:3306 \
+    -v $(pwd)/mysql_data:/var/lib/mysql \
+    mysql:8.0 \
+    --default-authentication-plugin=mysql_native_password \
+    --character-set-server=utf8mb4 \
+    --collation-server=utf8mb4_unicode_ci
+```
+
+停止 MySQL：
+
+```bash
+./stop-mysql.sh
+# 或
+docker stop tokenslipper-mysql
 ```
 
 ## ⚙️ 配置
@@ -55,6 +93,7 @@ VERIFY_CLIENT_AUTH=false
 LOG_LEVEL=info
 
 # ==================== 数据库配置 ====================
+# Docker MySQL 默认配置
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=tokenslipper
@@ -65,7 +104,13 @@ DB_NAME=tokenslipper
 ADMIN_PORT=8080
 ```
 
+> **注意**: 如果连接外部 MySQL，请修改 `DB_HOST` 和相关配置。
+
 ### 数据库初始化
+
+使用 Docker 启动的 MySQL 会自动创建数据库，无需手动初始化。
+
+如需手动初始化：
 
 ```sql
 CREATE DATABASE tokenslipper CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

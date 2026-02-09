@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+
+{% block title %}Token 管理 - TokenSlipper 管理后台{% endblock %}
+
+{% block page_title %}🔑 API Token 管理{% endblock %}
+
+{% block content %}
+<!-- API 连接信息卡片 -->
+<div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+    <div class="card-header" style="border-bottom: 1px solid rgba(255,255,255,0.2);">
+        <h2>📡 连接信息</h2>
+        <span style="font-size: 13px; opacity: 0.9;">在 Cursor 或其他客户端中使用以下配置</span>
+    </div>
+    <div class="card-body">
+        <div class="form-row" style="align-items: center;">
+            <div class="form-group" style="flex: 2;">
+                <label style="color: rgba(255,255,255,0.8);">API Base URL</label>
+                <div class="copy-field">
+                    <input type="text" id="api_base_url" value="{{ api_base_url }}" readonly class="copy-input">
+                    <button type="button" class="copy-btn" onclick="copyToClipboard('api_base_url')">📋 复制</button>
+                </div>
+            </div>
+            <div class="form-group" style="flex: 1; display: flex; align-items: center; gap: 10px; margin-bottom: 0;">
+                <span style="font-size: 14px; opacity: 0.9;">💡 将此地址填入 Cursor 的 OpenAI Base URL</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 创建 Token -->
+<div class="card">
+    <div class="card-header">
+        <h2>➕ 创建 API Token</h2>
+        <span class="text-muted" style="font-size: 13px;">生成 OpenAI 兼容格式的 Token</span>
+    </div>
+    <div class="card-body">
+        {% if error %}
+        <div class="alert alert-error">
+            <span>❌</span> {{ error }}
+        </div>
+        {% endif %}
+        
+        <form method="post" action="/admin/tokens/add">
+            <div class="form-row">
+                <div class="form-group" style="flex: 1;">
+                    <label for="name">令牌名称 *</label>
+                    <input type="text" id="name" name="name" required 
+                           placeholder="如: Cursor 专用"
+                           value="{{ form_data.name if form_data else '' }}">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label for="expires_days">过期时间</label>
+                    <select id="expires_days" name="expires_days">
+                        <option value="">永不过期</option>
+                        <option value="7">7 天</option>
+                        <option value="30">30 天</option>
+                        <option value="90">90 天</option>
+                        <option value="365">1 年</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex: 2;">
+                    <label for="description">描述（可选）</label>
+                    <input type="text" id="description" name="description" 
+                           placeholder="如: 用于 Cursor IDE 的 API 调用"
+                           value="{{ form_data.description if form_data else '' }}">
+                </div>
+                <div class="form-group" style="align-self: flex-end;">
+                    <button type="submit" class="btn btn-primary">创建 Token</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Token 列表 -->
+<div class="card">
+    <div class="card-header">
+        <h2>🔑 API Token 列表</h2>
+        <span class="text-muted" style="font-size: 13px;">点击复制获取 Token，填入 Cursor 的 API Key</span>
+    </div>
+    <div class="card-body">
+        {% if tokens %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>令牌名称</th>
+                    <th>Token</th>
+                    <th>描述</th>
+                    <th>创建时间</th>
+                    <th>过期时间</th>
+                    <th>使用次数</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for token in tokens %}
+                <tr>
+                    <td>{{ token.id }}</td>
+                    <td><strong>{{ token.name }}</strong></td>
+                    <td>
+                        <code class="token-code">{{ token.token_key[:20] }}...</code>
+                        <button class="btn btn-sm btn-secondary" onclick="copyToken('{{ token.token_key }}')">📋 复制</button>
+                    </td>
+                    <td>{{ token.description or '-' }}</td>
+                    <td>{{ token.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>
+                        {% if token.expires_at %}
+                            {{ token.expires_at.strftime('%Y-%m-%d') }}
+                        {% else %}
+                        <span class="text-muted">永不过期</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ token.use_count }}</td>
+                    <td>
+                        {% if token.is_active %}
+                        <span class="badge badge-success">启用</span>
+                        {% else %}
+                        <span class="badge badge-error">禁用</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-sm {{ 'btn-danger' if token.is_active else 'btn-success' }}" 
+                                onclick="toggleToken({{ token.id }}, this)">
+                            {{ '禁用' if token.is_active else '启用' }}
+                        </button>
+                        <a href="/admin/tokens/{{ token.id }}/delete" class="btn btn-danger btn-sm" 
+                           onclick="return confirm('确定删除此 Token？此操作不可恢复。')">删除</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">🔑</div>
+            <p>暂无 API Token</p>
+            <p class="text-muted">请在上方创建 Token</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 使用说明 -->
+<div class="card">
+    <div class="card-header">
+        <h2>📖 使用说明</h2>
+    </div>
+    <div class="card-body">
+        <div class="help-section">
+            <h4>🎯 在 Cursor 中使用</h4>
+            <ol>
+                <li>打开 Cursor 设置 (Settings)</li>
+                <li>找到 <strong>OpenAI</strong> 或 <strong>Models</strong> 配置</li>
+                <li>设置 <strong>OpenAI Base URL</strong> 为：<code>{{ api_base_url }}</code></li>
+                <li>设置 <strong>OpenAI API Key</strong> 为上方列表中复制的 Token</li>
+                <li>保存设置，开始使用</li>
+            </ol>
+        </div>
+        <div class="help-section">
+            <h4>🔧 在其他客户端中使用</h4>
+            <p>任何支持 OpenAI API 格式的客户端都可以使用：</p>
+            <ul>
+                <li><strong>API Base URL:</strong> <code>{{ api_base_url }}</code></li>
+                <li><strong>API Key:</strong> 从上方列表复制</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyToClipboard(elementId) {
+    const element = document.getElementById(elementId);
+    element.select();
+    element.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(element.value).then(() => {
+        showToast('已复制到剪贴板');
+    });
+}
+
+function copyToken(token) {
+    navigator.clipboard.writeText(token).then(() => {
+        showToast('Token 已复制到剪贴板');
+    });
+}
+
+async function toggleToken(id, btn) {
+    btn.disabled = true;
+    btn.textContent = '处理中...';
+    
+    try {
+        const response = await fetch('/admin/tokens/' + id + '/toggle', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Token 已' + result.status);
+            setTimeout(() => {
+                location.reload();
+            }, 500);
+        } else {
+            showToast('操作失败');
+            btn.disabled = false;
+        }
+    } catch (error) {
+        showToast('请求失败');
+        btn.disabled = false;
+    }
+}
+
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 10);
+    
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+            document.body.removeChild(toast);
+        }, 300);
+    }, 2000);
+}
+</script>
+
+<style>
+.copy-field {
+    display: flex;
+    gap: 10px;
+}
+
+.copy-input {
+    flex: 1;
+    background: rgba(255,255,255,0.1) !important;
+    color: white !important;
+    border: 1px solid rgba(255,255,255,0.3) !important;
+}
+
+.copy-input::placeholder {
+    color: rgba(255,255,255,0.5);
+}
+
+.copy-btn {
+    padding: 10px 20px;
+    background: white;
+    color: #667eea;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.copy-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.token-code {
+    background: #edf2f7;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    margin-right: 8px;
+}
+
+.help-section {
+    margin-bottom: 24px;
+}
+
+.help-section:last-child {
+    margin-bottom: 0;
+}
+
+.help-section h4 {
+    color: #2d3748;
+    margin-bottom: 12px;
+    font-size: 16px;
+}
+
+.help-section ol,
+.help-section ul {
+    margin-left: 20px;
+    color: #4a5568;
+}
+
+.help-section li {
+    margin: 8px 0;
+}
+
+.help-section code {
+    background: #edf2f7;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #2d3748;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 9999;
+    opacity: 0;
+    transition: all 0.3s;
+}
+
+.toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+</style>
+{% endblock %}

@@ -1,88 +1,25 @@
 {% extends "base.html" %}
 
-{% block title %}请求列表 - TokenSlipper 管理后台{% endblock %}
+{% block title %}请求日志 - TokenSlipper 管理后台{% endblock %}
 
-{% block extra_css %}
-<style>
-    .toolbar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
-        padding: 15px;
-        background: #f8f9fa;
-        border-radius: 8px;
-    }
-    
-    .page-size-selector {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    
-    .page-size-selector label {
-        font-size: 14px;
-        color: #666;
-    }
-    
-    .page-size-selector select {
-        padding: 6px 12px;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        font-size: 14px;
-        cursor: pointer;
-        background: white;
-    }
-    
-    .page-size-selector select:hover {
-        border-color: #667eea;
-    }
-    
-    .stats-info {
-        font-size: 14px;
-        color: #666;
-    }
-    
-    .stats-info strong {
-        color: #333;
-    }
-</style>
-{% endblock %}
+{% block page_title %}📋 请求日志{% endblock %}
 
 {% block content %}
 <div class="card">
     <div class="card-header">
-        <h2>📋 所有请求</h2>
+        <h2>📋 所有请求日志</h2>
+        <div style="display: flex; gap: 10px;">
+            <span class="text-muted" style="font-size: 14px;">共 {{ total }} 条记录</span>
+        </div>
     </div>
     <div class="card-body">
-        <!-- 工具栏 -->
-        <div class="toolbar">
-            <div class="page-size-selector">
-                <label for="pageSize">每页显示:</label>
-                <select id="pageSize" onchange="changePageSize(this.value)">
-                    <option value="10" {% if per_page == 10 %}selected{% endif %}>10 条</option>
-                    <option value="20" {% if per_page == 20 %}selected{% endif %}>20 条</option>
-                    <option value="50" {% if per_page == 50 %}selected{% endif %}>50 条</option>
-                    <option value="100" {% if per_page == 100 %}selected{% endif %}>100 条</option>
-                    <option value="200" {% if per_page == 200 %}selected{% endif %}>200 条</option>
-                </select>
-            </div>
-            <div class="stats-info">
-                共 <strong>{{ total }}</strong> 条记录 | 
-                第 <strong>{{ page }}</strong> / <strong>{{ total_pages }}</strong> 页
-            </div>
-        </div>
-        
-        <table>
+        <table class="data-table">
             <thead>
                 <tr>
-                    <th>ID</th>
                     <th>时间</th>
-                    <th>请求模型</th>
-                    <th>实际模型</th>
+                    <th>请求ID</th>
+                    <th>模型</th>
                     <th>消息数</th>
-                    <th>Temperature</th>
-                    <th>Stream</th>
                     <th>Tokens</th>
                     <th>耗时</th>
                     <th>状态</th>
@@ -92,19 +29,15 @@
             <tbody>
                 {% for req in requests %}
                 <tr>
-                    <td class="text-small">#{{ req.id }}</td>
                     <td>{{ req.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                    <td class="text-small">{{ req.model_requested }}</td>
-                    <td class="text-small">{{ req.model_mapped }}</td>
-                    <td>{{ req.message_count }}</td>
-                    <td>{{ req.temperature or '-' }}</td>
+                    <td><code style="font-size: 11px;">{{ req.request_id[:16] }}...</code></td>
                     <td>
-                        {% if req.stream %}
-                            <span class="badge badge-stream">是</span>
-                        {% else %}
-                            <span class="badge badge-normal">否</span>
+                        <div>{{ req.model_requested }}</div>
+                        {% if req.model_requested != req.model_mapped %}
+                        <div style="font-size: 12px; color: #667eea;">→ {{ req.model_mapped }}</div>
                         {% endif %}
                     </td>
+                    <td>{{ req.message_count }}</td>
                     <td>
                         {% if req.response %}
                             {{ req.response.total_tokens or '-' }}
@@ -127,11 +60,11 @@
                                 <span class="badge badge-error">错误</span>
                             {% endif %}
                         {% else %}
-                            <span class="badge badge-normal">-</span>
+                            <span class="badge badge-warning">处理中</span>
                         {% endif %}
                     </td>
                     <td>
-                        <a href="/admin/request/{{ req.request_id }}" class="btn btn-primary">详情</a>
+                        <a href="/admin/request/{{ req.request_id }}" class="btn btn-primary btn-sm">查看</a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -142,33 +75,37 @@
         {% if total_pages > 1 %}
         <div class="pagination">
             {% if page > 1 %}
-                <a href="/admin/requests?page={{ page - 1 }}&per_page={{ per_page }}">← 上一页</a>
+            <a href="?page={{ page - 1 }}&per_page={{ per_page }}">← 上一页</a>
             {% endif %}
             
             {% for p in range(1, total_pages + 1) %}
                 {% if p == page %}
-                    <span class="current">{{ p }}</span>
-                {% elif p <= 3 or p > total_pages - 3 or (p >= page - 2 and p <= page + 2) %}
-                    <a href="/admin/requests?page={{ p }}&per_page={{ per_page }}">{{ p }}</a>
-                {% elif p == 4 or p == total_pages - 3 %}
-                    <span>...</span>
+                <span class="current">{{ p }}</span>
+                {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
+                <a href="?page={{ p }}&per_page={{ per_page }}">{{ p }}</a>
+                {% elif p == page - 3 or p == page + 3 %}
+                <span>...</span>
                 {% endif %}
             {% endfor %}
             
             {% if page < total_pages %}
-                <a href="/admin/requests?page={{ page + 1 }}&per_page={{ per_page }}">下一页 →</a>
+            <a href="?page={{ page + 1 }}&per_page={{ per_page }}">下一页 →</a>
             {% endif %}
         </div>
         {% endif %}
+        
+        <!-- 每页数量选择 -->
+        <div style="margin-top: 20px; text-align: center; font-size: 13px;">
+            <span class="text-muted">每页显示:</span>
+            {% for size in [10, 20, 50, 100] %}
+                {% if size == per_page %}
+                <strong>{{ size }}</strong>
+                {% else %}
+                <a href="?page=1&per_page={{ size }}" style="color: #667eea;">{{ size }}</a>
+                {% endif %}
+                {% if not loop.last %}|{% endif %}
+            {% endfor %}
+        </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-function changePageSize(size) {
-    // 切换每页条数时，跳转到第一页
-    window.location.href = '/admin/requests?page=1&per_page=' + size;
-}
-</script>
 {% endblock %}

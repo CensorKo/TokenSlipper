@@ -4,7 +4,7 @@
 
 import os
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Float, JSON, ForeignKey, BigInteger
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Float, JSON, ForeignKey, BigInteger, Boolean, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.pool import QueuePool
@@ -89,6 +89,84 @@ class Message(Base):
     
     def __repr__(self):
         return f"<Message(id={self.id}, role={self.role}, request_id={self.request_id})>"
+
+
+class User(Base):
+    """用户表（管理后台登录）"""
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, index=True, nullable=False, comment="用户名")
+    password_hash = Column(String(255), nullable=False, comment="密码哈希")
+    is_active = Column(Boolean, default=True, comment="是否激活")
+    created_at = Column(DateTime, default=datetime.now, comment="创建时间")
+    last_login = Column(DateTime, nullable=True, comment="最后登录时间")
+    
+    def __repr__(self):
+        return f"<User(id={self.id}, username={self.username})>"
+
+
+class ApiToken(Base):
+    """API Token 表（供用户使用）"""
+    __tablename__ = "api_tokens"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, comment="令牌名称")
+    token_key = Column(String(100), unique=True, index=True, nullable=False, comment="Token 值")
+    description = Column(String(255), nullable=True, comment="描述")
+    is_active = Column(Boolean, default=True, comment="是否启用")
+    created_at = Column(DateTime, default=datetime.now, comment="创建时间")
+    expires_at = Column(DateTime, nullable=True, comment="过期时间")
+    last_used_at = Column(DateTime, nullable=True, comment="最后使用时间")
+    use_count = Column(Integer, default=0, comment="使用次数")
+    
+    def __repr__(self):
+        return f"<ApiToken(id={self.id}, name={self.name}, active={self.is_active})>"
+
+
+class ApiProvider(Base):
+    """API 厂商表"""
+    __tablename__ = "api_providers"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, comment="厂商名称")
+    base_url = Column(String(500), nullable=False, comment="API 基础 URL")
+    api_key = Column(String(500), nullable=False, comment="API Key")
+    is_active = Column(Boolean, default=True, comment="是否启用")
+    test_status = Column(String(20), default="unknown", comment="测试状态: success/failed/unknown")
+    test_message = Column(Text, nullable=True, comment="测试结果信息")
+    test_time = Column(DateTime, nullable=True, comment="最后测试时间")
+    created_at = Column(DateTime, default=datetime.now, comment="创建时间")
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
+    
+    def __repr__(self):
+        return f"<ApiProvider(id={self.id}, name={self.name}, status={self.test_status})>"
+
+
+class ModelMapping(Base):
+    """模型映射表（动态配置）"""
+    __tablename__ = "model_mappings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    provider_id = Column(Integer, ForeignKey("api_providers.id"), nullable=True, comment="关联厂商ID，NULL表示全局映射")
+    source_model = Column(String(100), index=True, nullable=False, comment="源模型名（如cursor发送的）")
+    target_model = Column(String(100), nullable=False, comment="目标模型名（映射后的）")
+    description = Column(String(255), nullable=True, comment="描述说明")
+    is_active = Column(Boolean, default=True, comment="是否启用")
+    created_at = Column(DateTime, default=datetime.now, comment="创建时间")
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
+    
+    # 关联厂商
+    provider = relationship("ApiProvider")
+    
+    __table_args__ = (
+        # 同一厂商下源模型名唯一
+        UniqueConstraint('provider_id', 'source_model', name='uix_provider_source_model'),
+    )
+    
+    def __repr__(self):
+        provider_name = self.provider.name if self.provider else "全局"
+        return f"<ModelMapping(id={self.id}, {provider_name}: {self.source_model} -> {self.target_model})>"
 
 
 class ResponseLog(Base):
