@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+
+{% block title %}请求详情 #{{ request.id }} - TokenSlipper 管理后台{% endblock %}
+
+{% block extra_css %}
+<style>
+    .detail-section {
+        margin-bottom: 30px;
+    }
+    
+    .detail-section h3 {
+        font-size: 16px;
+        color: #667eea;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #e0e0e0;
+    }
+    
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 15px;
+    }
+    
+    .info-item {
+        background: #f8f9fa;
+        padding: 12px 15px;
+        border-radius: 8px;
+    }
+    
+    .info-label {
+        font-size: 12px;
+        color: #666;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+    }
+    
+    .info-value {
+        font-size: 14px;
+        font-weight: 500;
+        color: #333;
+    }
+    
+    .content-box {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        max-height: 500px;
+        overflow-y: auto;
+    }
+    
+    .message-content {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+    
+    .json-viewer {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        overflow-x: auto;
+    }
+    
+    .json-key {
+        color: #d73a49;
+    }
+    
+    .json-string {
+        color: #032f62;
+    }
+    
+    .json-number {
+        color: #005cc5;
+    }
+    
+    .json-boolean {
+        color: #005cc5;
+    }
+    
+    .back-link {
+        display: inline-block;
+        margin-bottom: 20px;
+        color: #667eea;
+        text-decoration: none;
+    }
+    
+    .back-link:hover {
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<a href="/admin/requests" class="back-link">← 返回请求列表</a>
+
+<div class="grid-2">
+    <!-- 请求信息 -->
+    <div class="card">
+        <div class="card-header">
+            <h2>📤 请求信息</h2>
+        </div>
+        <div class="card-body">
+            <div class="detail-section">
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">请求 ID</div>
+                        <div class="info-value">{{ request.request_id }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">请求时间</div>
+                        <div class="info-value">{{ request.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3] }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">请求方法</div>
+                        <div class="info-value">{{ request.method }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">请求路径</div>
+                        <div class="info-value">{{ request.path }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">客户端 IP</div>
+                        <div class="info-value">{{ request.client_ip or 'Unknown' }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">消息数量</div>
+                        <div class="info-value">{{ request.message_count }}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <h3>模型参数</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">请求模型</div>
+                        <div class="info-value">{{ request.model_requested }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">映射后模型</div>
+                        <div class="info-value">{{ request.model_mapped }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Temperature</div>
+                        <div class="info-value">{{ request.temperature or 'Default' }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Max Tokens</div>
+                        <div class="info-value">{{ request.max_tokens or 'Default' }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Stream</div>
+                        <div class="info-value">{{ '是' if request.stream else '否' }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 响应信息 -->
+    <div class="card">
+        <div class="card-header">
+            <h2>📥 响应信息</h2>
+        </div>
+        <div class="card-body">
+            {% if request.response %}
+            <div class="detail-section">
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">状态码</div>
+                        <div class="info-value">
+                            {% if request.response.status_code == 200 %}
+                                <span style="color: #28a745;">✓ {{ request.response.status_code }}</span>
+                            {% else %}
+                                <span style="color: #dc3545;">✗ {{ request.response.status_code }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">响应时间</div>
+                        <div class="info-value">{{ request.response.response_timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3] }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">上游耗时</div>
+                        <div class="info-value">{{ "%.3f"|format(request.response.upstream_latency) }}s</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">总耗时</div>
+                        <div class="info-value">{{ "%.3f"|format(request.response.total_latency) }}s</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">响应模型</div>
+                        <div class="info-value">{{ request.response.model_responded or '-' }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Finish Reason</div>
+                        <div class="info-value">{{ request.response.finish_reason or '-' }}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <h3>Token 使用</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Prompt Tokens</div>
+                        <div class="info-value">{{ request.response.prompt_tokens or 0 }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Completion Tokens</div>
+                        <div class="info-value">{{ request.response.completion_tokens or 0 }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Total Tokens</div>
+                        <div class="info-value">{{ request.response.total_tokens or 0 }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Chunk 数量</div>
+                        <div class="info-value">{{ request.response.chunk_count or '-' }}</div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <p class="text-muted">暂无响应信息</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- 对话上下文 -->
+<div class="card">
+    <div class="card-header">
+        <h2>💬 对话上下文 ({{ messages|length }} 条消息)</h2>
+    </div>
+    <div class="card-body">
+        {% if messages %}
+            {% for msg in messages %}
+            <div class="message-item message-{{ msg.role }}">
+                <div class="message-role">{{ msg.role }} #{{ msg.message_index + 1 }}</div>
+                <div class="message-content">{{ msg.content }}</div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted">无消息记录</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 响应内容 -->
+{% if request.response and request.response.response_content %}
+<div class="card">
+    <div class="card-header">
+        <h2>🤖 AI 回复内容</h2>
+    </div>
+    <div class="card-body">
+        <div class="content-box">{{ request.response.response_content }}</div>
+    </div>
+</div>
+{% endif %}
+
+<!-- 原始数据 -->
+<div class="card">
+    <div class="card-header">
+        <h2>🔧 原始数据</h2>
+    </div>
+    <div class="card-body">
+        <div class="grid-2">
+            <div>
+                <h4>请求体 (JSON)</h4>
+                <pre id="request-json">{{ request_body_json }}</pre>
+            </div>
+            <div>
+                <h4>响应体 (JSON)</h4>
+                <pre id="response-json">{{ response_body_json }}</pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if request.response and request.response.error_message %}
+<div class="card" style="border: 2px solid #dc3545;">
+    <div class="card-header" style="background: #f8d7da;">
+        <h2>❌ 错误信息</h2>
+    </div>
+    <div class="card-body">
+        <div class="content-box" style="background: #f8d7da; color: #721c24;">{{ request.response.error_message }}</div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 简单的 JSON 语法高亮
+function syntaxHighlight(json) {
+    if (typeof json !== 'string') {
+        json = JSON.stringify(json, undefined, 2);
+    }
+    json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+        var cls = 'json-number';
+        if (/^"/.test(match)) {
+            if (/:$/.test(match)) {
+                cls = 'json-key';
+            } else {
+                cls = 'json-string';
+            }
+        } else if (/true|false/.test(match)) {
+            cls = 'json-boolean';
+        } else if (/null/.test(match)) {
+            cls = 'json-null';
+        }
+        return '<span class="' + cls + '">' + match + '</span>';
+    });
+}
+
+// 应用语法高亮
+document.getElementById('request-json').innerHTML = syntaxHighlight(document.getElementById('request-json').textContent);
+document.getElementById('response-json').innerHTML = syntaxHighlight(document.getElementById('response-json').textContent);
+</script>
+{% endblock %}

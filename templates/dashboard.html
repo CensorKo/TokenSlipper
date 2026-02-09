@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}概览 - TokenSlipper 管理后台{% endblock %}
+
+{% block content %}
+<!-- 统计卡片 -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_requests }}</div>
+        <div class="stat-label">总请求数</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_messages }}</div>
+        <div class="stat-label">总消息数</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_tokens or 0 }}</div>
+        <div class="stat-label">总 Token 消耗</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.avg_latency }}s</div>
+        <div class="stat-label">平均响应时间</div>
+    </div>
+</div>
+
+<!-- 最近请求 -->
+<div class="card">
+    <div class="card-header">
+        <h2>📋 最近请求</h2>
+    </div>
+    <div class="card-body">
+        <table>
+            <thead>
+                <tr>
+                    <th>时间</th>
+                    <th>模型</th>
+                    <th>消息数</th>
+                    <th>Tokens</th>
+                    <th>耗时</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for req in recent_requests %}
+                <tr>
+                    <td>{{ req.timestamp.strftime('%m-%d %H:%M:%S') }}</td>
+                    <td>
+                        <span class="text-small">{{ req.model_requested }}</span>
+                        {% if req.model_requested != req.model_mapped %}
+                        <br><span class="text-muted text-small">→ {{ req.model_mapped }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ req.message_count }}</td>
+                    <td>
+                        {% if req.response %}
+                            {{ req.response.total_tokens or '-' }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if req.response %}
+                            {{ "%.2f"|format(req.response.total_latency) }}s
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if req.response %}
+                            {% if req.response.status_code == 200 %}
+                                <span class="badge badge-success">成功</span>
+                            {% else %}
+                                <span class="badge badge-error">错误 {{ req.response.status_code }}</span>
+                            {% endif %}
+                            {% if req.response.is_stream %}
+                                <span class="badge badge-stream">Stream</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge badge-normal">处理中</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/admin/request/{{ req.request_id }}" class="btn btn-primary">查看详情</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div style="margin-top: 20px; text-align: center;">
+            <a href="/admin/requests?per_page=20" class="btn btn-secondary">查看全部请求 →</a>
+        </div>
+    </div>
+</div>
+
+<!-- 模型使用统计 -->
+<div class="card">
+    <div class="card-header">
+        <h2>🤖 模型使用统计</h2>
+    </div>
+    <div class="card-body">
+        <table>
+            <thead>
+                <tr>
+                    <th>模型</th>
+                    <th>请求次数</th>
+                    <th>占比</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for model in model_stats %}
+                <tr>
+                    <td>{{ model.model_mapped or 'Unknown' }}</td>
+                    <td>{{ model.count }}</td>
+                    <td>{{ "%.1f"|format(model.count / stats.total_requests * 100) }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
