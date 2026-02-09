@@ -1,3 +1,5 @@
+![TokenSlipper Banner](logo/banner.png)
+
 # 🩴 TokenSlipper
 
 > **给各大模型厂商 "敲警钟" 的 "拖鞋"！**
