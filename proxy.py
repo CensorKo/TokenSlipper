@@ -1738,37 +1738,7 @@ if __name__ == "__main__":
     
     uvicorn.run(app, host="0.0.0.0", port=PROXY_PORT)
 
-# 自定义 Jinja2 过滤器
-def format_message_content(content):
-    """格式化消息内容，处理 JSON 数组格式"""
-    if not content:
-        return ""
-    
-    # 如果是字符串，尝试解析为 JSON
-    if isinstance(content, str):
-        try:
-            import json
-            data = json.loads(content)
-            if isinstance(data, list):
-                # 提取所有 text 内容
-                texts = []
-                for item in data:
-                    if isinstance(item, dict):
-                        if item.get("type") == "text":
-                            texts.append(item.get("text", ""))
-                        elif "text" in item:
-                            texts.append(item["text"])
-                return "\n".join(texts)
-            else:
-                # 如果是 dict，尝试获取 text
-                return data.get("text", str(data))
-        except:
-            # 解析失败，返回原内容
-            return content
-    
-    return str(content)
-
-# 注册过滤器
+# 注册 404 处理器
 app.add_exception_handler(404, lambda req, exc: JSONResponse(status_code=404, content={"detail": "Not found"}))
 
 # 自定义 Jinja2 过滤器
