@@ -368,7 +368,7 @@
         <h2>🤖 AI 回复内容</h2>
     </div>
     <div class="card-body">
-        <div class="content-box">{{ request_log.response.response_content }}</div>
+        <pre class="content-box" style="white-space: pre-wrap; word-wrap: break-word; max-height: 600px; overflow: auto;">{{ request_log.response.response_content }}</pre>
     </div>
 </div>
 {% endif %}
