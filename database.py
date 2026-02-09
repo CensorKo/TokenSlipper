@@ -13,10 +13,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # MySQL 配置
-DB_HOST = os.getenv("DB_HOST", "192.168.1.22")
+DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", "3306"))
-DB_USER = os.getenv("DB_USER", "censor")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "jhshgU2-madksjhuv-sisidmtud")
+DB_USER = os.getenv("DB_USER", "tokenslipper")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "your-db-password")
 DB_NAME = os.getenv("DB_NAME", "tokenslipper")
 
 # 创建数据库连接 URL
