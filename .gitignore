@@ -55,3 +55,4 @@ Thumbs.db
 *.pyc
 .pytest_cache/
 .mypy_cache/
+mysql_data/
