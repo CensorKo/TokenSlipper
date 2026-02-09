@@ -20,7 +20,7 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "jhshgU2-madksjhuv-sisidmtud")
 DB_NAME = os.getenv("DB_NAME", "tokenslipper")
 
 # 创建数据库连接 URL
-DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
+DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4&use_unicode=1&collation=utf8mb4_unicode_ci"
 
 # 创建引擎
 engine = create_engine(
@@ -29,7 +29,11 @@ engine = create_engine(
     pool_size=10,
     max_overflow=20,
     pool_pre_ping=True,
-    echo=False
+    echo=False,
+    connect_args={
+        'charset': 'utf8mb4',
+        'use_unicode': True
+    }
 )
 
 # 创建会话工厂

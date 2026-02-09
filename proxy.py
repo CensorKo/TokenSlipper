@@ -20,6 +20,7 @@ import uuid
 import httpx
 import hashlib
 import secrets
+import tiktoken
 from typing import AsyncGenerator, Optional, List, Tuple
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Header, Request, Depends
@@ -31,6 +32,25 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, desc
+
+# 初始化 tiktoken 编码器（用于计算 token）
+try:
+    # 使用 cl100k_base 编码器（GPT-4/Claude 通用）
+    TOKEN_ENCODER = tiktoken.get_encoding("cl100k_base")
+except Exception:
+    TOKEN_ENCODER = None
+
+def count_tokens(text: str) -> int:
+    """计算文本的 token 数量"""
+    if not text:
+        return 0
+    if TOKEN_ENCODER:
+        try:
+            return len(TOKEN_ENCODER.encode(text))
+        except Exception:
+            pass
+    # 降级方案：字符数 / 4
+    return len(text) // 4
 
 from database import (
     init_db, get_db, SessionLocal,
@@ -218,6 +238,15 @@ def map_model_name(cursor_model: str, db: Session = None, provider_id: int = Non
         log_info(f"模型静态映射: {original_model} -> {mapped_model}")
     return mapped_model
 
+def get_active_provider() -> Optional[ApiProvider]:
+    """获取启用的 API 提供商"""
+    db = SessionLocal()
+    try:
+        provider = db.query(ApiProvider).filter(ApiProvider.is_active == True).first()
+        return provider
+    finally:
+        db.close()
+
 async def get_upstream_headers(client_auth: Optional[str] = None) -> dict:
     """构建转发到上游 API 的请求头"""
     headers = {
@@ -226,19 +255,37 @@ async def get_upstream_headers(client_auth: Optional[str] = None) -> dict:
         "Accept-Encoding": "gzip, deflate",
     }
     
+    # 优先使用客户端提供的授权
     if VERIFY_CLIENT_AUTH and client_auth:
         headers["Authorization"] = client_auth
         log_debug("使用客户端提供的 Authorization")
-    elif UPSTREAM_API_KEY:
+        return headers
+    
+    # 其次使用数据库中配置的 API 提供商
+    provider = get_active_provider()
+    if provider:
+        headers["Authorization"] = f"Bearer {provider.api_key}"
+        log_debug(f"使用数据库配置的 API Key (提供商: {provider.name})")
+        return headers
+    
+    # 最后使用环境变量配置
+    if UPSTREAM_API_KEY:
         headers["Authorization"] = f"Bearer {UPSTREAM_API_KEY}"
-        log_debug("使用配置的 UPSTREAM_API_KEY")
+        log_debug("使用环境变量配置的 UPSTREAM_API_KEY")
     
     return headers
 
-def save_request_to_db(db: Session, request_id: str, headers: dict, body: dict, client_ip: str):
+def save_request_to_db(db: Session, request_id: str, headers: dict, body: dict, client_ip: str, 
+                       original_model: str = None, mapped_model: str = None):
     """保存请求信息到数据库"""
     try:
         messages = body.get("messages", [])
+        
+        # 如果未提供原始模型名和映射模型名，从 body 中获取
+        if original_model is None:
+            original_model = body.get("model", "")
+        if mapped_model is None:
+            mapped_model = map_model_name(original_model, db)
         
         # 创建请求记录
         request_log = RequestLog(
@@ -247,8 +294,8 @@ def save_request_to_db(db: Session, request_id: str, headers: dict, body: dict, 
             path="/v1/chat/completions",
             client_ip=client_ip,
             user_agent=headers.get("user-agent", "")[:500],
-            model_requested=body.get("model", ""),
-            model_mapped=map_model_name(body.get("model", ""), db),
+            model_requested=original_model,
+            model_mapped=mapped_model,
             temperature=body.get("temperature"),
             max_tokens=body.get("max_tokens"),
             stream=1 if body.get("stream", False) else 0,
@@ -259,11 +306,18 @@ def save_request_to_db(db: Session, request_id: str, headers: dict, body: dict, 
         
         # 保存每条消息
         for idx, msg in enumerate(messages):
+            # 处理 content 可能是 dict 的情况
+            content = msg.get("content", "")
+            if isinstance(content, dict):
+                content = json.dumps(content, ensure_ascii=False)
+            elif isinstance(content, list):
+                content = json.dumps(content, ensure_ascii=False)
+            
             message = Message(
                 request_id=request_id,
                 role=msg.get("role", "unknown"),
-                content=msg.get("content", ""),
-                content_preview=msg.get("content", "")[:200],
+                content=content,
+                content_preview=content[:200],
                 message_index=idx
             )
             db.add(message)
@@ -279,7 +333,8 @@ def save_request_to_db(db: Session, request_id: str, headers: dict, body: dict, 
 def save_response_to_db(db: Session, request_id: str, status_code: int, 
                         response_data: dict, upstream_latency: float, 
                         total_latency: float, is_stream: bool = False,
-                        chunk_count: int = None, error_msg: str = None):
+                        chunk_count: int = None, error_msg: str = None,
+                        request_body: dict = None):
     """保存响应信息到数据库"""
     try:
         # 提取响应内容
@@ -295,17 +350,42 @@ def save_response_to_db(db: Session, request_id: str, status_code: int,
         
         # 获取 token 使用情况
         usage = response_data.get("usage", {}) if response_data else {}
+        prompt_tokens = usage.get("prompt_tokens")
+        completion_tokens = usage.get("completion_tokens")
+        total_tokens = usage.get("total_tokens")
+        
+        # 如果上游没有返回 token，使用 tiktoken 计算
+        if prompt_tokens is None and request_body:
+            # 计算 prompt tokens
+            messages = request_body.get("messages", [])
+            prompt_text = ""
+            for msg in messages:
+                if isinstance(msg, dict):
+                    prompt_text += msg.get("content", "") + "\n"
+            prompt_tokens = count_tokens(prompt_text)
+        
+        if completion_tokens is None and content:
+            # 计算 completion tokens
+            completion_tokens = count_tokens(content)
+        
+        if total_tokens is None and prompt_tokens is not None and completion_tokens is not None:
+            total_tokens = prompt_tokens + completion_tokens
+        
+        # 获取响应模型，如果上游没有返回则使用请求的模型
+        model_responded = response_data.get("model") if response_data else None
+        if not model_responded and request_body:
+            model_responded = request_body.get("model")
         
         response_log = ResponseLog(
             request_id=request_id,
             status_code=status_code,
             upstream_latency=upstream_latency,
             total_latency=total_latency,
-            model_responded=response_data.get("model") if response_data else None,
+            model_responded=model_responded,
             finish_reason=response_data.get("choices", [{}])[0].get("finish_reason") if response_data else None,
-            prompt_tokens=usage.get("prompt_tokens"),
-            completion_tokens=usage.get("completion_tokens"),
-            total_tokens=usage.get("total_tokens"),
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
             response_content=content,
             response_content_preview=content[:200] if content else None,
             is_stream=1 if is_stream else 0,
@@ -320,11 +400,13 @@ def save_response_to_db(db: Session, request_id: str, status_code: int,
         db.rollback()
         log_error(f"保存响应到数据库失败", {"error": str(e)})
 
-async def stream_response_with_capture(response: httpx.Response, req_id: str, db_request_id: str) -> AsyncGenerator[str, None]:
+async def stream_response_with_capture(response: httpx.Response, req_id: str, db_request_id: str, 
+                                       body_json: dict = None, request_start_time: float = None,
+                                       upstream_latency: float = None) -> AsyncGenerator[str, None]:
     """流式读取上游响应并 yield SSE 格式数据，同时捕获完整内容"""
     chunk_count = 0
     full_content_parts = []
-    start_time = time.time()
+    stream_start_time = time.time()
     
     try:
         async for line in response.aiter_lines():
@@ -347,7 +429,13 @@ async def stream_response_with_capture(response: httpx.Response, req_id: str, db
                 yield f"{line}\n\n"
         
         # 流结束，保存响应
-        total_latency = time.time() - start_time
+        stream_end_time = time.time()
+        # 总耗时 = 请求开始时间到流结束时间，如果没有请求开始时间则使用流传输时间
+        if request_start_time:
+            total_latency = stream_end_time - request_start_time
+        else:
+            total_latency = stream_end_time - stream_start_time
+        
         full_content = "".join(full_content_parts)
         
         # 构造一个模拟的响应数据
@@ -360,7 +448,8 @@ async def stream_response_with_capture(response: httpx.Response, req_id: str, db
         db = SessionLocal()
         try:
             save_response_to_db(db, db_request_id, 200, response_data, 
-                              total_latency, total_latency, True, chunk_count)
+                              upstream_latency or 0, total_latency, True, chunk_count,
+                              request_body=body_json)
         finally:
             db.close()
         
@@ -368,7 +457,7 @@ async def stream_response_with_capture(response: httpx.Response, req_id: str, db
         
     except Exception as e:
         log_error(f"[Req {req_id}] 流式响应错误", {"error": str(e)})
-        yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
         yield "data: [DONE]\n\n"
 
 # ==================== Token 验证 ====================
@@ -416,23 +505,32 @@ async def list_models(request: Request, authorization: Optional[str] = Header(No
     req_id = get_request_id()
     log_info(f"[Req {req_id}] GET /v1/models")
     
-    # 验证 Token
+    # 验证 Token（如果启用）
     db = SessionLocal()
     try:
-        is_valid, token, error_msg = await verify_client_token(authorization, db)
-        if not is_valid:
-            log_info(f"[Req {req_id}] Token 验证失败: {error_msg}")
-            return JSONResponse(
-                status_code=401,
-                content={"error": {"message": error_msg, "type": "authentication_error"}}
-            )
+        if VERIFY_CLIENT_AUTH:
+            is_valid, token, error_msg = await verify_client_token(authorization, db)
+            if not is_valid:
+                log_info(f"[Req {req_id}] Token 验证失败: {error_msg}")
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": {"message": error_msg, "type": "authentication_error"}}
+                )
     finally:
         db.close()
     
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             upstream_headers = await get_upstream_headers(authorization)
-            response = await client.get(f"{UPSTREAM_BASE_URL}/models", headers=upstream_headers)
+            # 获取上游 URL（优先使用数据库配置）
+            provider = get_active_provider()
+            if provider:
+                upstream_base = provider.base_url.rstrip("/")
+                if not upstream_base.endswith("/v1"):
+                    upstream_base = f"{upstream_base}/v1"
+            else:
+                upstream_base = UPSTREAM_BASE_URL
+            response = await client.get(f"{upstream_base}/models", headers=upstream_headers)
             
             if response.status_code == 200:
                 return JSONResponse(content=response.json())
@@ -461,39 +559,59 @@ async def chat_completions(request: Request, authorization: Optional[str] = Head
     
     # 读取原始请求体
     raw_body = await request.body()
+    
+    # 显式使用 UTF-8 解码
     try:
-        body_json = json.loads(raw_body)
+        body_text = raw_body.decode('utf-8')
+    except UnicodeDecodeError:
+        body_text = raw_body.decode('latin-1')  # 降级处理
+    
+    # 记录原始请求用于调试
+    client_ip = request.client.host if request.client else "unknown"
+    log_info(f"[Req {req_id}] 收到请求 IP:{client_ip} Body:{body_text[:500]}")
+    
+    try:
+        body_json = json.loads(body_text)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON")
     
     headers = dict(request.headers)
+    # 确保 headers 的值都是字符串
+    headers = {k: str(v) for k, v in headers.items()}
     client_ip = request.client.host if request.client else None
     
-    # 验证 Token
+    # 验证 Token（如果启用）
     db = SessionLocal()
+    token = None
     try:
-        is_valid, token, error_msg = await verify_client_token(authorization, db)
-        if not is_valid:
-            log_info(f"[Req {req_id}] Token 验证失败: {error_msg}")
-            return JSONResponse(
-                status_code=401,
-                content={"error": {"message": error_msg, "type": "authentication_error"}}
-            )
+        if VERIFY_CLIENT_AUTH:
+            is_valid, token, error_msg = await verify_client_token(authorization, db)
+            if not is_valid:
+                log_info(f"[Req {req_id}] Token 验证失败: {error_msg}")
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": {"message": error_msg, "type": "authentication_error"}}
+                )
         
         # 打印日志
-        log_info(f"[Req {req_id}] 收到请求: POST /v1/chat/completions", {
+        log_data = {
             "request_id": db_request_id,
-            "token": token.name,
             "模型": body_json.get("model"),
             "消息数": len(body_json.get("messages", [])),
             "stream": body_json.get("stream", False)
-        })
+        }
+        if token:
+            log_data["token"] = token.name
+        log_info(f"[Req {req_id}] 收到请求: POST /v1/chat/completions", log_data)
         
-        save_request_to_db(db, db_request_id, headers, body_json, client_ip)
-        
-        # 模型名称映射（使用数据库查询动态映射）
+        # 模型名称映射（使用数据库查询动态映射）- 先映射再保存
         original_model = body_json.get("model", "")
-        body_json["model"] = map_model_name(original_model, db)
+        active_provider = get_active_provider()
+        provider_id = active_provider.id if active_provider else None
+        mapped_model = map_model_name(original_model, db, provider_id)
+        body_json["model"] = mapped_model
+        
+        save_request_to_db(db, db_request_id, headers, body_json, client_ip, original_model, mapped_model)
     finally:
         db.close()
     
@@ -501,14 +619,36 @@ async def chat_completions(request: Request, authorization: Optional[str] = Head
         upstream_headers = await get_upstream_headers(authorization)
         is_stream = body_json.get("stream", False)
         
-        log_info(f"[Req {req_id}] 转发到上游: {UPSTREAM_BASE_URL}/chat/completions")
+        # 清理上游不支持的参数
+        # 复制 body_json 以避免修改原始请求体（用于数据库记录）
+        upstream_body = body_json.copy()
+        
+        # 删除可能不支持的参数
+        unsupported_params = ["tool_choice", "tools", "parallel_tool_calls"]
+        for param in unsupported_params:
+            if param in upstream_body:
+                log_debug(f"[Req {req_id}] 删除上游不支持的参数: {param}")
+                del upstream_body[param]
+        
+        # 获取上游 URL（优先使用数据库配置）
+        provider = get_active_provider()
+        if provider:
+            upstream_base = provider.base_url.rstrip("/")
+            if not upstream_base.endswith("/v1"):
+                upstream_base = f"{upstream_base}/v1"
+            log_info(f"[Req {req_id}] 使用提供商 '{provider.name}' -> {upstream_base}")
+        else:
+            upstream_base = UPSTREAM_BASE_URL
+            log_info(f"[Req {req_id}] 使用环境配置 -> {upstream_base}")
+        
+        log_info(f"[Req {req_id}] 转发到上游: {upstream_base}/chat/completions")
         
         async with httpx.AsyncClient(timeout=300.0) as client:
             upstream_start = time.time()
             response = await client.post(
-                f"{UPSTREAM_BASE_URL}/chat/completions",
+                f"{upstream_base}/chat/completions",
                 headers=upstream_headers,
-                json=body_json,
+                json=upstream_body,
                 timeout=300.0
             )
             upstream_latency = time.time() - upstream_start
@@ -525,7 +665,8 @@ async def chat_completions(request: Request, authorization: Optional[str] = Head
                 try:
                     total_latency = time.time() - start_time
                     save_response_to_db(db, db_request_id, response.status_code, None,
-                                      upstream_latency, total_latency, False, None, error_str)
+                                      upstream_latency, total_latency, False, None, error_str,
+                                      request_body=body_json)
                 finally:
                     db.close()
                 
@@ -533,8 +674,10 @@ async def chat_completions(request: Request, authorization: Optional[str] = Head
             
             if is_stream:
                 # 流式请求
+                # 计算首字节时间 (TTFB)
+                ttfb_latency = time.time() - start_time
                 return StreamingResponse(
-                    stream_response_with_capture(response, req_id, db_request_id),
+                    stream_response_with_capture(response, req_id, db_request_id, body_json, start_time, ttfb_latency),
                     media_type="text/event-stream",
                     headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
                 )
@@ -556,7 +699,8 @@ async def chat_completions(request: Request, authorization: Optional[str] = Head
                 db = SessionLocal()
                 try:
                     save_response_to_db(db, db_request_id, 200, response_data,
-                                      upstream_latency, total_latency, False)
+                                      upstream_latency, total_latency, False, 
+                                      request_body=body_json)
                 finally:
                     db.close()
                 
@@ -568,6 +712,9 @@ async def chat_completions(request: Request, authorization: Optional[str] = Head
     except httpx.ConnectError as e:
         log_error(f"[Req {req_id}] 无法连接到上游", {"error": str(e)})
         raise HTTPException(status_code=502, detail="Cannot connect to upstream")
+    except HTTPException:
+        # 不要捕获 FastAPI 的 HTTPException，让它正常返回
+        raise
     except Exception as e:
         log_error(f"[Req {req_id}] 处理异常", {"error": str(e)})
         raise HTTPException(status_code=500, detail=str(e))
@@ -575,21 +722,27 @@ async def chat_completions(request: Request, authorization: Optional[str] = Head
 @app.post("/v1/completions")
 async def completions(request: Request, authorization: Optional[str] = Header(None)):
     """文本补全接口（旧版）- 转发到上游 API"""
-    # 验证 Token
+    # 验证 Token（如果启用）
     db = SessionLocal()
     try:
-        is_valid, token, error_msg = await verify_client_token(authorization, db)
-        if not is_valid:
-            return JSONResponse(
-                status_code=401,
-                content={"error": {"message": error_msg, "type": "authentication_error"}}
-            )
+        if VERIFY_CLIENT_AUTH:
+            is_valid, token, error_msg = await verify_client_token(authorization, db)
+            if not is_valid:
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": {"message": error_msg, "type": "authentication_error"}}
+                )
     finally:
         db.close()
     
     raw_body = await request.body()
     try:
-        body = json.loads(raw_body)
+        body_text = raw_body.decode('utf-8')
+    except UnicodeDecodeError:
+        body_text = raw_body.decode('latin-1')
+    
+    try:
+        body = json.loads(body_text)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON")
     
@@ -603,9 +756,17 @@ async def completions(request: Request, authorization: Optional[str] = Header(No
     
     try:
         upstream_headers = await get_upstream_headers(authorization)
+        # 获取上游 URL（优先使用数据库配置）
+        provider = get_active_provider()
+        if provider:
+            upstream_base = provider.base_url.rstrip("/")
+            if not upstream_base.endswith("/v1"):
+                upstream_base = f"{upstream_base}/v1"
+        else:
+            upstream_base = UPSTREAM_BASE_URL
         async with httpx.AsyncClient(timeout=300.0) as client:
             response = await client.post(
-                f"{UPSTREAM_BASE_URL}/completions",
+                f"{upstream_base}/completions",
                 headers=upstream_headers,
                 json=body,
                 timeout=300.0
@@ -623,21 +784,27 @@ async def completions(request: Request, authorization: Optional[str] = Header(No
 @app.post("/v1/embeddings")
 async def embeddings(request: Request, authorization: Optional[str] = Header(None)):
     """向量嵌入接口 - 转发到上游 API"""
-    # 验证 Token
+    # 验证 Token（如果启用）
     db = SessionLocal()
     try:
-        is_valid, token, error_msg = await verify_client_token(authorization, db)
-        if not is_valid:
-            return JSONResponse(
-                status_code=401,
-                content={"error": {"message": error_msg, "type": "authentication_error"}}
-            )
+        if VERIFY_CLIENT_AUTH:
+            is_valid, token, error_msg = await verify_client_token(authorization, db)
+            if not is_valid:
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": {"message": error_msg, "type": "authentication_error"}}
+                )
     finally:
         db.close()
     
     raw_body = await request.body()
     try:
-        body = json.loads(raw_body)
+        body_text = raw_body.decode('utf-8')
+    except UnicodeDecodeError:
+        body_text = raw_body.decode('latin-1')
+    
+    try:
+        body = json.loads(body_text)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON")
     
@@ -651,9 +818,17 @@ async def embeddings(request: Request, authorization: Optional[str] = Header(Non
     
     try:
         upstream_headers = await get_upstream_headers(authorization)
+        # 获取上游 URL（优先使用数据库配置）
+        provider = get_active_provider()
+        if provider:
+            upstream_base = provider.base_url.rstrip("/")
+            if not upstream_base.endswith("/v1"):
+                upstream_base = f"{upstream_base}/v1"
+        else:
+            upstream_base = UPSTREAM_BASE_URL
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
-                f"{UPSTREAM_BASE_URL}/embeddings",
+                f"{upstream_base}/embeddings",
                 headers=upstream_headers,
                 json=body,
                 timeout=60.0
@@ -857,9 +1032,23 @@ async def admin_request_detail(
     # 排序消息
     messages = sorted(request_log.messages, key=lambda m: m.message_index)
     
-    # 准备 JSON 数据
-    request_body_json = json.dumps(request_log.request_body, ensure_ascii=False, indent=2) if request_log.request_body else "{}"
-    response_body_json = json.dumps(request_log.response.response_body, ensure_ascii=False, indent=2) if request_log.response and request_log.response.response_body else "{}"
+    # 准备 JSON 数据 - 格式化显示
+    def format_json(data):
+        if not data:
+            return "{}"
+        try:
+            # 如果是字符串，先解析
+            if isinstance(data, str):
+                parsed = json.loads(data)
+            else:
+                parsed = data
+            # 再格式化为带缩进的字符串
+            return json.dumps(parsed, ensure_ascii=False, indent=2)
+        except:
+            return str(data) if data else "{}"
+    
+    request_body_json = format_json(request_log.request_body)
+    response_body_json = format_json(request_log.response.response_body if request_log.response else None)
     
     return templates.TemplateResponse("request_detail.html", {
         "request": request,
@@ -1396,9 +1585,9 @@ async def admin_tokens(
     host = request.headers.get('host', 'www.tokenslipper.com')
     # 如果是 IP 地址或 localhost，使用 www.tokenslipper.com
     if ':' in host or host in ['localhost', '127.0.0.1']:
-        api_base_url = "http://www.tokenslipper.com/v1"
+        api_base_url = "https://www.tokenslipper.com/v1"
     else:
-        api_base_url = f"http://{host}/v1"
+        api_base_url = f"https://{host}/v1"
     
     return templates.TemplateResponse("tokens.html", {
         "request": request,
@@ -1452,9 +1641,9 @@ async def admin_token_add(
     host = request.headers.get('host', 'www.tokenslipper.com')
     # 如果是 IP 地址或 localhost，使用 www.tokenslipper.com
     if ':' in host or host in ['localhost', '127.0.0.1']:
-        api_base_url = "http://www.tokenslipper.com/v1"
+        api_base_url = "https://www.tokenslipper.com/v1"
     else:
-        api_base_url = f"http://{host}/v1"
+        api_base_url = f"https://{host}/v1"
     
     return templates.TemplateResponse("tokens.html", {
         "request": request,
@@ -1544,3 +1733,72 @@ if __name__ == "__main__":
 """)
     
     uvicorn.run(app, host="0.0.0.0", port=PROXY_PORT)
+
+# 自定义 Jinja2 过滤器
+def format_message_content(content):
+    """格式化消息内容，处理 JSON 数组格式"""
+    if not content:
+        return ""
+    
+    # 如果是字符串，尝试解析为 JSON
+    if isinstance(content, str):
+        try:
+            import json
+            data = json.loads(content)
+            if isinstance(data, list):
+                # 提取所有 text 内容
+                texts = []
+                for item in data:
+                    if isinstance(item, dict):
+                        if item.get("type") == "text":
+                            texts.append(item.get("text", ""))
+                        elif "text" in item:
+                            texts.append(item["text"])
+                return "\n".join(texts)
+            else:
+                # 如果是 dict，尝试获取 text
+                return data.get("text", str(data))
+        except:
+            # 解析失败，返回原内容
+            return content
+    
+    return str(content)
+
+# 注册过滤器
+app.add_exception_handler(404, lambda req, exc: JSONResponse(status_code=404, content={"detail": "Not found"}))
+
+# 自定义 Jinja2 过滤器
+def format_message_content(content):
+    """格式化消息内容，处理 JSON 数组格式"""
+    if not content:
+        return ""
+    
+    import json
+    
+    # 如果是字符串，尝试解析为 JSON
+    if isinstance(content, str):
+        try:
+            data = json.loads(content)
+            if isinstance(data, list):
+                # 提取所有 text 内容
+                texts = []
+                for item in data:
+                    if isinstance(item, dict):
+                        if item.get("type") == "text":
+                            texts.append(item.get("text", ""))
+                        elif "text" in item:
+                            texts.append(item["text"])
+                return "\n".join(texts)
+            elif isinstance(data, dict):
+                # 如果是 dict，尝试获取 text
+                return data.get("text", str(data))
+            else:
+                return str(data)
+        except:
+            # 解析失败，返回原内容
+            return content
+    
+    return str(content)
+
+# 注册过滤器到 templates
+templates.env.filters['format_message'] = format_message_content

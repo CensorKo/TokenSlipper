@@ -24,10 +24,9 @@ start() {
     # 设置环境变量
     export PYTHONPATH=$APP_DIR:$PYTHONPATH
     
-    # 使用 gunicorn 启动
+    # 使用 gunicorn 启动（不使用 --daemon，由 systemd 管理）
     $GUNICORN \
         -c $APP_DIR/gunicorn.conf.py \
-        --daemon \
         $APP_MODULE
     
     sleep 2

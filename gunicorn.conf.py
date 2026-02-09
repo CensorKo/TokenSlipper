@@ -26,11 +26,11 @@ daemon = False
 # 日志级别
 loglevel = "debug" if DEBUG else LOG_LEVEL
 
-# 访问日志
-accesslog = "/var/log/tokenslipper/access.log"
+# 访问日志 - 输出到标准输出
+accesslog = "-"
 
-# 错误日志
-errorlog = "/var/log/tokenslipper/error.log"
+# 错误日志 - 输出到标准错误
+errorlog = "-"
 
 # 进程 PID 文件
 pidfile = "/var/run/tokenslipper.pid"
@@ -51,7 +51,7 @@ proc_name = "tokenslipper"
 
 # 捕获输出
 capture_output = True
-enable_stdio_inheritance = DEBUG
+enable_stdio_inheritance = True
 
 # 访问日志格式
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
