@@ -361,7 +361,11 @@ def save_response_to_db(db: Session, request_id: str, status_code: int,
             prompt_text = ""
             for msg in messages:
                 if isinstance(msg, dict):
-                    prompt_text += msg.get("content", "") + "\n"
+                    content = msg.get("content", "")
+                    # 处理 content 可能是 list 或 dict 的情况
+                    if isinstance(content, (list, dict)):
+                        content = json.dumps(content, ensure_ascii=False)
+                    prompt_text += content + "\n"
             prompt_tokens = count_tokens(prompt_text)
         
         if completion_tokens is None and content:
